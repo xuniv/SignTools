@@ -3,6 +3,7 @@
 /data-test*/
 /certs/
 /signer-cfg*.yml
+/release-assets/
 __pycache__/
 *.pyc
 

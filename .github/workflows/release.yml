@@ -57,6 +57,7 @@ jobs:
           bun run build
           go test ./...
           python3 scripts/release-version_test.py
+          python3 scripts/collect-release-assets_test.py
 
   binaries:
     needs: verify
@@ -90,10 +91,7 @@ jobs:
           args: release --clean --skip=publish
 
       - name: Collect release files
-        run: |
-          mkdir release-assets
-          find dist -maxdepth 1 -type f \( -name 'SignTools_*' -o -name checksums.txt \) -exec cp {} release-assets/ \;
-          test -s release-assets/checksums.txt
+        run: python3 scripts/collect-release-assets.py
 
       - name: Save release files
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
