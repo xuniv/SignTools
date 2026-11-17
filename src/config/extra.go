@@ -18,6 +18,7 @@ import (
 
 // ExtraConf extends the upstream configuration without changing any legacy keys.
 type ExtraConf struct {
+	EncKey         string            `yaml:"enc_key,omitempty" json:"-"`
 	Builders       []ExtraBuilder    `yaml:"builders,omitempty"`
 	BuilderAliases map[string]string `yaml:"builder_aliases,omitempty"`
 	DefaultBuilder string            `yaml:"default_builder,omitempty"`

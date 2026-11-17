@@ -2,6 +2,8 @@ package storage
 
 import (
 	"SignTools/src/util"
+	"fmt"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"io"
 	"os"
@@ -9,6 +11,63 @@ import (
 	"sync"
 	"time"
 )
+
+// NewInstallOnly keeps an already signed or DRM-protected IPA byte-for-byte.
+// It creates an installation record without profiles, signing jobs or builders.
+func (r *appResolver) NewInstallOnly(source io.Reader, name string) (App, error) {
+	a := newApp(uuid.NewString())
+	if err := a.MkDir(AppRoot); err != nil {
+		return nil, err
+	}
+	complete := false
+	defer func() {
+		if !complete {
+			_ = a.delete()
+		}
+	}()
+	if err := a.SetFile(AppUnsignedFile, source); err != nil {
+		return nil, err
+	}
+	f, err := a.GetFile(AppUnsignedFile)
+	if err != nil {
+		return nil, err
+	}
+	stat, err := f.Stat()
+	if err != nil {
+		_ = f.Close()
+		return nil, err
+	}
+	info, err := util.ReadAppMetadata(f, stat.Size())
+	if err != nil || info.BundleID == "" {
+		_ = f.Close()
+		return nil, fmt.Errorf("install-only import requires an IPA with a valid main-bundle Info.plist")
+	}
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		_ = f.Close()
+		return nil, err
+	}
+	err = a.SetFile(AppSignedFile, f)
+	_ = f.Close()
+	if err != nil {
+		return nil, err
+	}
+	for field, value := range map[FSName]string{AppName: name, AppInstallOnly: "true", AppBuilderId: "", AppProfileId: "", AppWorkflowUrl: "", AppBundleId: info.BundleID} {
+		if err := a.SetString(field, value); err != nil {
+			return nil, err
+		}
+	}
+	_ = a.SaveInfo() // Missing artwork does not invalidate installation metadata.
+	if err := a.CaptureSignedInfo(); err != nil {
+		return nil, err
+	}
+	a.watch()
+	r.mutex.Lock()
+	r.idToAppMap[a.GetId()] = a
+	r.mutex.Unlock()
+	complete = true
+	Changes.notify()
+	return a, nil
+}
 
 func newAppResolver() *appResolver {
 	return &appResolver{

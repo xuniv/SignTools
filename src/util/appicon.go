@@ -12,6 +12,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/pkg/errors"
 	"howett.net/plist"
@@ -27,11 +28,15 @@ const (
 
 // AppInfo is what's shown about an app before it's signed.
 type AppInfo struct {
-	Mac      bool   // a native Mac app, rather than one for iOS
-	BundleID string // the unsigned app's stable identity, before signing changes its identifier
-	Version  string
-	Icon     []byte // PNG of at most iconOutputSize pixels per side
-	IconErr  error  // why there's no icon
+	Mac          bool   // a native Mac app, rather than one for iOS
+	BundleID     string // the unsigned app's stable identity, before signing changes its identifier
+	Version      string
+	BuildVersion string
+	DisplayName  string
+	Executable   string
+	Encryption   string
+	Icon         []byte // PNG of at most iconOutputSize pixels per side
+	IconErr      error  // why there's no icon
 }
 
 // ExtractIcon returns the app icon of an IPA as a PNG of at most iconOutputSize pixels per side.
@@ -63,9 +68,13 @@ func ReadAppInfo(r io.ReaderAt, size int64) (*AppInfo, error) {
 			return nil, err
 		}
 		info.Version = plistInfo.version()
+		info.BuildVersion = strings.TrimSpace(plistInfo.BuildVersion)
+		info.DisplayName = plistInfo.displayName()
+		info.Executable = strings.TrimSpace(plistInfo.Executable)
 		info.BundleID = strings.TrimSpace(plistInfo.BundleID)
 		names = plistInfo.iconNames()
 	}
+	info.Encryption = bundleEncryption(bundle, info.Executable)
 	info.Icon, info.IconErr = extractIcon(r, bundle, names)
 	return info, nil
 }
@@ -264,12 +273,22 @@ type iconNames struct {
 
 type infoPlist struct {
 	BundleID     string         `plist:"CFBundleIdentifier"`
+	DisplayName  string         `plist:"CFBundleDisplayName"`
+	BundleName   string         `plist:"CFBundleName"`
+	Executable   string         `plist:"CFBundleExecutable"`
 	ShortVersion string         `plist:"CFBundleShortVersionString"`
 	BuildVersion string         `plist:"CFBundleVersion"`
 	Icons        map[string]any `plist:"CFBundleIcons"`
 	IconsIpad    map[string]any `plist:"CFBundleIcons~ipad"`
 	IconFiles    []string       `plist:"CFBundleIconFiles"`
 	IconFile     string         `plist:"CFBundleIconFile"`
+}
+
+func (info *infoPlist) displayName() string {
+	if name := strings.TrimSpace(info.DisplayName); name != "" {
+		return name
+	}
+	return strings.TrimSpace(info.BundleName)
 }
 
 func readInfoPlist(f *zip.File) (*infoPlist, error) {
@@ -280,6 +299,23 @@ func readInfoPlist(f *zip.File) (*infoPlist, error) {
 	var info infoPlist
 	if _, err := plist.Unmarshal(data, &info); err != nil {
 		return nil, errors.WithMessage(err, "parse Info.plist")
+	}
+	// Reject oversized actual identifiers instead of truncating them into a
+	// different identity or persisting metadata that cannot be safely reloaded.
+	for _, field := range []struct {
+		name, value string
+		limit       int
+	}{
+		{"CFBundleIdentifier", info.BundleID, 255},
+		{"CFBundleDisplayName", info.DisplayName, 1024},
+		{"CFBundleName", info.BundleName, 1024},
+		{"CFBundleShortVersionString", info.ShortVersion, 128},
+		{"CFBundleVersion", info.BuildVersion, 128},
+		{"CFBundleExecutable", info.Executable, 255},
+	} {
+		if len(field.value) > field.limit || !utf8.ValidString(field.value) {
+			return nil, errors.Errorf("Info.plist %s exceeds its %d-byte UTF-8 metadata limit", field.name, field.limit)
+		}
 	}
 	return &info, nil
 }

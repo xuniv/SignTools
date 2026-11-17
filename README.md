@@ -14,9 +14,11 @@
 
 ## This fork
 
-A PWA interface built with shadcn/ui, grouped app and version browsing, external AltStore sources, browser-managed signing profiles and builders, and optional Web Push completion notifications. Existing SignTools configuration and builder protocols remain compatible; fork settings live under optional `extra_conf`.
+A PWA interface built with shadcn/ui, grouped app and version browsing, an IPA library, external AltStore sources, browser-managed signing profiles and builders, and optional Web Push completion notifications. Pinned upstream ipatool and unfairplay integrations add account-based App Store downloads and model-based IPA decryption with an encrypted browser vault and passphrase-protected backups. Existing SignTools configuration and builder protocols remain compatible; fork settings live under optional `extra_conf`.
 
 See [fork setup, configuration, and release instructions](docs/FORK.md). Download [stable fork releases](https://github.com/xuniv/SignTools/releases) or use `ghcr.io/xuniv/signtools:latest`. Versions start at `3.1.0-1` and increment the suffix for each fork patch.
+
+See [IPA library, App Store accounts, models, and encrypted backups](docs/STORE.md) for operation and platform details. Source builds require `git clone --recurse-submodules` or `git submodule update --init --recursive`.
 
 ## Introduction
 
@@ -38,6 +40,11 @@ By using this project, you acknowledge and agree that the developers and collabo
 - Optional signing-completion Web Push notifications for installed PWAs
 - Server and browser-managed AltStore-compatible app sources
 - Browser-uploaded certificates and profiles, additional builders, and saved preferences
+- Inspect IPA metadata and encryption state before signing, and retain original and processed files in a reusable library
+- Search App Store catalogs, browse purchased apps and specific versions, and download using multiple country-aware accounts
+- Decrypt matching IPAs with user-provided upstream models on supported hosts
+- Encrypt saved account/model records and export passphrase-protected browser backups
+- Install an already signed IPA directly without creating a signing job
 - Upload unsigned apps, download signed apps
 - Inject tweaks as you are signing apps
 - Save tweaks to a library and reuse them across apps

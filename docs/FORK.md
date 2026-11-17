@@ -12,6 +12,10 @@ extra_conf:
   # HTTP Basic authentication remains available to clients and scripts.
   login_page: false
 
+  # Private server secret. A random 128-character value is saved if absent.
+  # Keep the generated value when migrating accounts/models to another server.
+  # enc_key: YOUR_128_CHARACTER_SECRET
+
   builder_aliases:
     GitHub: GitHub Actions
     Semaphore: Semaphore CI
@@ -64,7 +68,7 @@ The web interface can add GitHub, Semaphore, and self-hosted builders without ed
 
 Signing profiles can be uploaded as a `.p12` certificate, its password, and either a `.mobileprovision` file or developer-account credentials. Profiles use the existing SignTools storage layout and validation. Profiles supplied by environment variables and profiles still referenced by apps cannot be removed through the browser.
 
-Preferred builder and profile IDs, theme, and external source URLs are stored in this browser's `localStorage`. Tokens, passwords, certificates, and private keys are not stored there. Browser preferences take priority over server defaults, and missing choices fall back to available entries.
+Preferred builder and profile IDs, theme, and external source URLs are stored in this browser's `localStorage`. Builder tokens, passwords, certificates, and server private keys are not stored there. App Store sessions and decryption models use an encrypted browser vault with a separate browser key; see [accounts, models, and backups](STORE.md). Browser preferences take priority over server defaults, and missing choices fall back to available entries.
 
 ## Finding apps and using external sources
 
@@ -110,7 +114,7 @@ To publish, open **Actions → Release → Run workflow** on `master`, or run:
 gh workflow run release.yml --repo xuniv/SignTools --ref master
 ```
 
-The workflow verifies formatting, TypeScript, frontend tests, the embedded web build, Go tests, and release-version tests. It then builds binaries with `checksums.txt` and a multi-platform GHCR container before creating the GitHub release. All publication uses the repository's `GITHUB_TOKEN`; DockerHub credentials are unnecessary. If GHCR package visibility is private on its first publication, its owner can change it to public in the package settings.
+The workflow verifies formatting, TypeScript, frontend tests, the embedded web build, Go tests, and release-version tests. Container builds also verify that the native image starts successfully with its runtime libraries. It then builds binaries with `checksums.txt` and a multi-platform GHCR container before creating the GitHub release. All publication uses the repository's `GITHUB_TOKEN`; DockerHub credentials are unnecessary. If GHCR package visibility is private on its first publication, its owner can change it to public in the package settings.
 
 The release workflow is manual and serialized. It does not create local-author commits, add coauthor trailers, or open automated release PRs. Existing commits keep their original signatures and attribution. New changes should be committed through a GitHub server-signed path when GitHub's default signature is required. Binary builds omit local paths and VCS build metadata.
 
@@ -126,16 +130,19 @@ A normal push runs validation without creating a release. GitHub releases, not a
 
 ## Building locally
 
-Use Go 1.27.4 and Bun 1.4.4 (matching the Dockerfile and CI), then run:
+Use Go 1.27.4 and Bun 1.4.4 (matching the Dockerfile and CI). Clone with `--recurse-submodules`, or initialize the pinned upstream sources, then run:
 
 ```sh
+git submodule update --init --recursive
 bun install --frozen-lockfile --ignore-scripts
 bun run fmt:check
 bun run check
-bun test
+bun test src/web
 bun run build
 go test ./...
 go build -trimpath -buildvcs=false -o SignTools .
 ```
+
+The [App Store/model guide](STORE.md) describes runtime platform support, writable caches, and preserving `enc_key` during server migrations.
 
 The frontend is bundled locally into the Go binary. No UI scripts, stylesheets, or fonts are fetched from third-party CDNs at runtime. Upstream AGPL licensing and existing attribution remain in place.

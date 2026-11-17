@@ -130,7 +130,7 @@ func Load(fileName string) {
 		log.Fatal().Err(err).Msg("init: invalid builders")
 	}
 	if len(builderMap) < 1 {
-		log.Fatal().Msg("init: no builders defined")
+		log.Info().Msg("no builders configured; library and install-only features are available")
 	}
 	builderKey := make([]byte, 32)
 	if _, err := rand.Read(builderKey); err != nil {
@@ -191,6 +191,9 @@ func getFile(mapDelim rune, fileName string) (*File, error) {
 	fileConfig := File{}
 	if err := k.UnmarshalWithConf("", &fileConfig, koanf.UnmarshalConf{Tag: "yaml"}); err != nil {
 		return nil, errors.WithMessage(err, "unmarshal")
+	}
+	if err := fileConfig.ensureEncryptionKey(); err != nil {
+		return nil, errors.WithMessage(err, "initialize encryption key")
 	}
 	file, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {

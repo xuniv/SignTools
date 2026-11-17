@@ -4,6 +4,7 @@ import (
 	"SignTools/src/assets"
 	"SignTools/src/builders"
 	"SignTools/src/config"
+	"SignTools/src/library"
 	"SignTools/src/storage"
 	"SignTools/src/tunnel"
 	"SignTools/src/util"
@@ -154,11 +155,17 @@ func serve(host string, port uint64) {
 	e.GET("/api/events", streamAPIEvents, basicAuth)
 	e.GET("/api/repository", getRepository, basicAuth)
 	registerManagementRoutes(e, basicAuth)
+	registerLibraryRoutes(e, basicAuth)
+	registerTaskRoutes(e, basicAuth)
+	registerStoreRoutes(e, basicAuth)
+	registerDecryptRoutes(e, basicAuth)
+	registerVaultRoutes(e, basicAuth)
 	registerAuthRoutes(e)
 	if err := registerPWARoutes(e, basicAuth); err != nil {
 		log.Fatal().Err(err).Msg("initialize PWA")
 	}
 	static := staticHandler()
+	e.GET("/licenses/upstream.txt", func(c echo.Context) error { return c.String(http.StatusOK, assets.UpstreamNotices) })
 	staticGzip := middleware.GzipWithConfig(middleware.GzipConfig{Skipper: skipStaticGzip})
 	e.GET("/favicon.png", static, basicAuth)
 	// no auth: the install page loads these too
@@ -235,10 +242,7 @@ func renderInstall(c echo.Context, app storage.App) error {
 			Host:   "ota.signtools.workers.dev",
 			Path:   "/v1",
 		}
-		name, err := app.GetString(storage.AppName)
-		if err != nil {
-			logErrApp(err, app).Msg("get name")
-		}
+		name := appDisplayName(app)
 		bundleId, _ := app.GetString(storage.AppBundleId)
 
 		query := url.Values{
@@ -252,13 +256,15 @@ func renderInstall(c echo.Context, app storage.App) error {
 	if usingManifestProxy {
 		log.Warn().Str("base_url", getBaseUrl(c)).Msg("using OTA manifest proxy, installation may not work")
 	}
-	appName, err := app.GetString(storage.AppName)
-	if err != nil {
-		return err
-	}
+	appName := appDisplayName(app)
 	data := assets.InstallData{
 		ManifestUrl: manifestUrl,
 		AppName:     appName,
+		Encryption:  appMetadataValue(app, storage.AppSignedEncryption, storage.AppEncryption),
+	}
+	data.InstallOnly = appMetadataValue(app, storage.AppInstallOnly) == "true"
+	if data.Encryption == util.EncryptionEncrypted {
+		data.Limitations = append(data.Limitations, "This IPA is encrypted. Installation still requires valid App Store authorization on the device.")
 	}
 	t, err := htmlTemplate.New("").Parse(assets.InstallHtml)
 	if err != nil {
@@ -474,6 +480,9 @@ func uploadSignedApp(c echo.Context, job *storage.ReturnJob) error {
 	if err := app.SetString(storage.AppBundleId, c.FormValue("bundle_id")); err != nil {
 		return err
 	}
+	if err := app.CaptureSignedInfo(); err != nil {
+		logErrApp(err, app).Msg("read signed IPA metadata")
+	}
 	if !storage.Jobs.DeleteById(job.Id) {
 		return errors.New("unable to delete return job " + job.Id)
 	}
@@ -583,10 +592,7 @@ func makeManifest(baseUrl string, app storage.App) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	appName, err := app.GetString(storage.AppName)
-	if err != nil {
-		return nil, err
-	}
+	appName := appDisplayName(app)
 	bundleId, err := app.GetString(storage.AppBundleId)
 	if err != nil {
 		return nil, err
@@ -599,6 +605,10 @@ func makeManifest(baseUrl string, app storage.App) ([]byte, error) {
 		DownloadUrl: downloadUrl,
 		BundleId:    bundleId,
 		Title:       appName,
+		Version:     appMetadataValue(app, storage.AppSignedBuildVersion, storage.AppSignedVersion, storage.AppBuildVersion, storage.AppVersion),
+	}
+	if data.Version == "" {
+		data.Version = "1.0"
 	}
 	var result bytes.Buffer
 	if err := t.Execute(&result, data); err != nil {
@@ -781,7 +791,14 @@ func uploadUnsignedApp(c echo.Context) error {
 	var fileName string
 	fileId := c.FormValue(formNames.FormFileId)
 	fileUrl := c.FormValue(formNames.FormFileUrl)
-	if fileUrl != "" {
+	if libraryID := c.FormValue("library_id"); libraryID != "" {
+		artifactFile, artifact, err := library.Open(libraryID)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "Library IPA not found")
+		}
+		file, fileName = artifactFile, artifact.Name
+		defer file.Close()
+	} else if fileUrl != "" {
 		var resp *http.Response
 		var err error
 		if c.FormValue("source_import") == "true" {
@@ -932,6 +949,9 @@ func uploadUnsignedApp(c echo.Context) error {
 }
 
 func resignApp(c echo.Context, app storage.App) error {
+	if appMetadataValue(app, storage.AppInstallOnly) == "true" {
+		return echo.NewHTTPError(http.StatusConflict, "Install-only apps preserve their original signature; choose Sign from the library to create a signed copy")
+	}
 	builderId, err := app.GetString(storage.AppBuilderId)
 	if err != nil {
 		return err
@@ -1016,7 +1036,28 @@ func buildAppViews() ([]assets.App, error) {
 			_ = app.SaveInfo()
 			originalBundleId, _ = app.GetString(storage.AppOriginalBundleId)
 		}
-		version, _ := app.GetString(storage.AppVersion)
+		if _, err := app.GetString(storage.AppOriginalDisplayName); os.IsNotExist(err) {
+			_ = app.SaveInfo()
+		}
+		if isSigned {
+			if _, err := app.GetString(storage.AppSignedDisplayName); os.IsNotExist(err) {
+				_ = app.CaptureSignedInfo()
+			}
+		}
+		bundleId = appMetadataValue(app, storage.AppSignedBundleId, storage.AppBundleId, storage.AppOriginalBundleId)
+		if !isSigned {
+			bundleId = appMetadataValue(app, storage.AppUserBundleId, storage.AppBundleId, storage.AppOriginalBundleId)
+		}
+		originalVersion, _ := app.GetString(storage.AppVersion)
+		originalBuildVersion, _ := app.GetString(storage.AppBuildVersion)
+		version := appMetadataValue(app, storage.AppSignedVersion, storage.AppVersion)
+		buildVersion := appMetadataValue(app, storage.AppSignedBuildVersion, storage.AppBuildVersion)
+		originalDisplayName, _ := app.GetString(storage.AppOriginalDisplayName)
+		signedDisplayName, _ := app.GetString(storage.AppSignedDisplayName)
+		signedBundleId, _ := app.GetString(storage.AppSignedBundleId)
+		encryption := appMetadataValue(app, storage.AppSignedEncryption, storage.AppEncryption)
+		installOnlyValue, _ := app.GetString(storage.AppInstallOnly)
+		installOnly := installOnlyValue == "true"
 		platform, _ := app.GetString(storage.AppPlatform)
 		profileId, err := app.GetString(storage.AppProfileId)
 		if err != nil {
@@ -1029,8 +1070,10 @@ func buildAppViews() ([]assets.App, error) {
 				logErrApp(err, app).Msg("get profile name")
 			}
 		} else {
-			logErrApp(err, app).Msg("get profile")
 			profileName = "unknown"
+		}
+		if installOnly {
+			profileName = "Original signature"
 		}
 		jobPending, jobExists := storage.Jobs.GetStatusByAppId(app.GetId())
 		var status int
@@ -1054,27 +1097,36 @@ func buildAppViews() ([]assets.App, error) {
 		}
 
 		views = append(views, assets.App{
-			Id:                  app.GetId(),
-			Status:              status,
-			Name:                name,
-			ModTime:             modTime.UTC().Format(time.RFC3339),
-			WorkflowUrl:         workflowUrl,
-			ProfileName:         profileName,
-			BundleId:            bundleId,
-			GroupId:             originalBundleId,
-			Version:             version,
-			IsMac:               platform == storage.PlatformMac,
-			InstallUrl:          path.Join("/apps", app.GetId(), "install"),
-			DownloadSignedUrl:   path.Join("/apps", app.GetId(), "signed"),
-			DownloadUnsignedUrl: path.Join("/apps", app.GetId(), "unsigned"),
-			DownloadTweaksUrl:   path.Join("/apps", app.GetId(), "tweaks"),
-			TwoFactorUrl:        path.Join("/apps", app.GetId(), "2fa"),
-			ResignUrl:           path.Join("/apps", app.GetId(), "resign"),
-			DeleteUrl:           path.Join("/apps", app.GetId(), "delete"),
-			RenameUrl:           path.Join("/apps", app.GetId(), "rename"),
-			IconUrl:             path.Join("/apps", app.GetId(), "icon"),
-			TweakCount:          len(tweakNames),
-			TweakNames:          strings.Join(tweakNames, "\n"),
+			Id:                   app.GetId(),
+			Status:               status,
+			Name:                 name,
+			ModTime:              modTime.UTC().Format(time.RFC3339),
+			WorkflowUrl:          workflowUrl,
+			ProfileName:          profileName,
+			BundleId:             bundleId,
+			GroupId:              originalBundleId,
+			Version:              version,
+			BuildVersion:         buildVersion,
+			DisplayName:          appDisplayName(app),
+			OriginalDisplayName:  originalDisplayName,
+			SignedDisplayName:    signedDisplayName,
+			SignedBundleId:       signedBundleId,
+			OriginalVersion:      originalVersion,
+			OriginalBuildVersion: originalBuildVersion,
+			Encryption:           encryption,
+			InstallOnly:          installOnly,
+			IsMac:                platform == storage.PlatformMac,
+			InstallUrl:           path.Join("/apps", app.GetId(), "install"),
+			DownloadSignedUrl:    path.Join("/apps", app.GetId(), "signed"),
+			DownloadUnsignedUrl:  path.Join("/apps", app.GetId(), "unsigned"),
+			DownloadTweaksUrl:    path.Join("/apps", app.GetId(), "tweaks"),
+			TwoFactorUrl:         path.Join("/apps", app.GetId(), "2fa"),
+			ResignUrl:            path.Join("/apps", app.GetId(), "resign"),
+			DeleteUrl:            path.Join("/apps", app.GetId(), "delete"),
+			RenameUrl:            path.Join("/apps", app.GetId(), "rename"),
+			IconUrl:              path.Join("/apps", app.GetId(), "icon"),
+			TweakCount:           len(tweakNames),
+			TweakNames:           strings.Join(tweakNames, "\n"),
 		})
 	}
 	return views, nil

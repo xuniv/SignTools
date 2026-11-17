@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.1.0-2 (2026-11-17)
+
+- Add a persistent IPA library with metadata and encryption inspection, original/result separation, and installation without a signing job.
+- Integrate pinned upstream ipatool sources for multiple App Store accounts, regional browsing, owned apps, free-license acquisition, version metadata, and specific-version downloads.
+- Integrate pinned upstream unfairplay sources for exact-selector model matching, background decryption, and truthful verification reports.
+- Seal sessions/models with a persistent private server key and an independent encrypted browser vault; add passphrase-protected ZIP backups and restoration.
+- Preserve the existing release architecture matrix with explicit upstream capability reporting and shared-library runtime support in 64-bit containers.
+- Fetch pinned submodules recursively in validation, releases, containers, and release-asset repairs.
+
 ## 3.1.0-1 (2026-11-17)
 
 - Replace the web interface with a responsive shadcn/ui PWA, grouped app versions, search, saved builder/profile preferences, and embedded installation pages.
