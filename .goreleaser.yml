@@ -1,14 +1,17 @@
+version: 2
+project_name: SignTools
 before:
   hooks:
-    - bun install --frozen-lockfile
+    - bun install --frozen-lockfile --ignore-scripts
     - bun run build
 builds:
   - env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w
+      - -s -w -buildid=
     flags:
       - -trimpath
+      - -buildvcs=false
     goos:
       - linux
       - windows
@@ -22,8 +25,13 @@ builds:
       - 6
       - 7
 archives:
-  - format: binary
+  - formats: [binary]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
 checksum:
-  name_template: "checksums.txt"
+  name_template: checksums.txt
 release:
-  prerelease: auto
+  # The numeric suffix identifies a stable fork patch, not a prerelease.
+  prerelease: false
+  make_latest: true
+changelog:
+  disable: true

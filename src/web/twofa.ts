@@ -1,16 +1,25 @@
-import { Modal } from "bootstrap";
-import { byId } from "./dom";
-
-const formToken = byId("formToken", HTMLInputElement);
-
-byId("uploadForm", HTMLFormElement).addEventListener("submit", (event) => {
-  formToken.classList.remove("is-invalid", "is-valid");
-  if (formToken.value.length !== 6) {
+import { request } from "./lib/api";
+const form = document.getElementById("twofa-form");
+if (form instanceof HTMLFormElement)
+  form.addEventListener("submit", (event) => {
     event.preventDefault();
-    event.stopPropagation();
-    formToken.classList.add("is-invalid");
-  }
-});
-
-new Modal(byId("uploadModal", HTMLDivElement), { backdrop: "static", keyboard: false }).show();
-formToken.focus();
+    const feedback = document.getElementById("form-feedback");
+    const button = form.querySelector("button");
+    if (button) button.disabled = true;
+    void request(location.pathname, { method: "POST", body: new FormData(form) })
+      .then(() => {
+        if (feedback) {
+          feedback.hidden = false;
+          feedback.textContent = "Code submitted. Signing will continue shortly.";
+        }
+      })
+      .catch((error) => {
+        if (feedback) {
+          feedback.hidden = false;
+          feedback.textContent = error instanceof Error ? error.message : String(error);
+        }
+      })
+      .finally(() => {
+        if (button) button.disabled = false;
+      });
+  });

@@ -52,6 +52,7 @@ type File struct {
 	CleanupIntervalMins uint64    `yaml:"cleanup_interval_mins"`
 	SignTimeoutMins     uint64    `yaml:"sign_timeout_mins"`
 	BasicAuth           BasicAuth `yaml:"basic_auth"`
+	ExtraConf           ExtraConf `yaml:"extra_conf,omitempty"`
 }
 
 func createDefaultFile() *File {
@@ -124,7 +125,10 @@ func Load(fileName string) {
 	if err != nil {
 		log.Fatal().Err(err).Msg("get config")
 	}
-	builderMap := fileConfig.Builder.MakeEnabled()
+	builderMap, err := fileConfig.makeBuilders()
+	if err != nil {
+		log.Fatal().Err(err).Msg("init: invalid builders")
+	}
 	if len(builderMap) < 1 {
 		log.Fatal().Msg("init: no builders defined")
 	}
@@ -188,11 +192,14 @@ func getFile(mapDelim rune, fileName string) (*File, error) {
 	if err := k.UnmarshalWithConf("", &fileConfig, koanf.UnmarshalConf{Tag: "yaml"}); err != nil {
 		return nil, errors.WithMessage(err, "unmarshal")
 	}
-	file, err := os.Create(fileName)
+	file, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return nil, errors.WithMessage(err, "create")
 	}
 	defer file.Close()
+	if err := file.Chmod(0600); err != nil {
+		return nil, errors.WithMessage(err, "restrict config permissions")
+	}
 	if err := yaml.NewEncoder(file).Encode(&fileConfig); err != nil {
 		return nil, errors.WithMessage(err, "write")
 	}

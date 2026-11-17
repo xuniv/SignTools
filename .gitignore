@@ -3,6 +3,8 @@
 /data-test*/
 /certs/
 /signer-cfg*.yml
+__pycache__/
+*.pyc
 
 # built by `bun run build`
 /src/assets/js/

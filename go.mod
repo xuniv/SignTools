@@ -3,6 +3,7 @@ module SignTools
 go 1.26.0
 
 require (
+	github.com/SherClockHolmes/webpush-go v1.4.0
 	github.com/ViRb3/koanf-extra v0.0.0-20241224160111-fad8e9827c5f
 	github.com/ViRb3/sling/v2 v2.0.2
 	github.com/aixiansheng/lzfse v0.2.4
@@ -37,6 +38,7 @@ replace (
 require (
 	github.com/fatih/structs v1.1.0 // indirect
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
+	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/go-querystring v1.2.0 // indirect
 	github.com/jba/slog v0.0.0-20230403194657-e1c00ce43c8a // indirect
 	github.com/mattn/go-colorable v0.1.16 // indirect

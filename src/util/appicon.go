@@ -27,10 +27,11 @@ const (
 
 // AppInfo is what's shown about an app before it's signed.
 type AppInfo struct {
-	Mac     bool // a native Mac app, rather than one for iOS
-	Version string
-	Icon    []byte // PNG of at most iconOutputSize pixels per side
-	IconErr error  // why there's no icon
+	Mac      bool   // a native Mac app, rather than one for iOS
+	BundleID string // the unsigned app's stable identity, before signing changes its identifier
+	Version  string
+	Icon     []byte // PNG of at most iconOutputSize pixels per side
+	IconErr  error  // why there's no icon
 }
 
 // ExtractIcon returns the app icon of an IPA as a PNG of at most iconOutputSize pixels per side.
@@ -62,6 +63,7 @@ func ReadAppInfo(r io.ReaderAt, size int64) (*AppInfo, error) {
 			return nil, err
 		}
 		info.Version = plistInfo.version()
+		info.BundleID = strings.TrimSpace(plistInfo.BundleID)
 		names = plistInfo.iconNames()
 	}
 	info.Icon, info.IconErr = extractIcon(r, bundle, names)
@@ -261,6 +263,7 @@ type iconNames struct {
 }
 
 type infoPlist struct {
+	BundleID     string         `plist:"CFBundleIdentifier"`
 	ShortVersion string         `plist:"CFBundleShortVersionString"`
 	BuildVersion string         `plist:"CFBundleVersion"`
 	Icons        map[string]any `plist:"CFBundleIcons"`

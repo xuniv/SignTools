@@ -5,14 +5,18 @@
         A free, self-hosted platform to sign and install iOS apps without a computer
     </p>
     <p align="center">
-        <img alt="GitHub" src="https://img.shields.io/github/license/signtools/SignTools">
-        <img alt="GitHub issues" src="https://img.shields.io/github/issues/signtools/SignTools">
-        <img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/signtools/signtools">
-        <img alt="Docker Image Version (latest semver)" src="https://img.shields.io/docker/v/signtools/signtools">
-        <img alt="GitHub all releases" src="https://img.shields.io/github/downloads/signtools/SignTools/total">
-        <img alt="GitHub release (latest SemVer)" src="https://img.shields.io/github/v/release/signtools/SignTools">
+        <img alt="GitHub" src="https://img.shields.io/github/license/xuniv/SignTools">
+        <img alt="GitHub issues" src="https://img.shields.io/github/issues/xuniv/SignTools">
+        <img alt="GitHub all releases" src="https://img.shields.io/github/downloads/xuniv/SignTools/total">
+        <img alt="GitHub release (latest SemVer)" src="https://img.shields.io/github/v/release/xuniv/SignTools">
     </p>
 </p>
+
+## This fork
+
+A PWA interface built with shadcn/ui, grouped app and version browsing, external AltStore sources, browser-managed signing profiles and builders, and optional Web Push completion notifications. Existing SignTools configuration and builder protocols remain compatible; fork settings live under optional `extra_conf`.
+
+See [fork setup, configuration, and release instructions](docs/FORK.md). Download [stable fork releases](https://github.com/xuniv/SignTools/releases) or use `ghcr.io/xuniv/signtools:latest`. Versions start at `3.1.0-1` and increment the suffix for each fork patch.
 
 ## Introduction
 
@@ -29,7 +33,11 @@ By using this project, you acknowledge and agree that the developers and collabo
 - No jailbreak required
 - iOS, iPadOS, macOS (native + IPA) supported
 - No computer required after an initial setup
-- Minimalistic, mobile-friendly web interface
+- Responsive shadcn/ui interface with dark mode and iOS home-screen installation
+- Apps grouped by bundle identifier and version, with search and status filters
+- Optional signing-completion Web Push notifications for installed PWAs
+- Server and browser-managed AltStore-compatible app sources
+- Browser-uploaded certificates and profiles, additional builders, and saved preferences
 - Upload unsigned apps, download signed apps
 - Inject tweaks as you are signing apps
 - Save tweaks to a library and reuse them across apps
@@ -37,17 +45,6 @@ By using this project, you acknowledge and agree that the developers and collabo
 - Provisioning profiles and developer accounts supported
 - Configurable signing including entitlements
 - Choose from multiple signing profiles for each app
-
-## Screenshots
-
-<table>
-<tr>
-    <td>
-        <img height="600px" src="img/3.png"/>
-        <img height="600px" src="img/4.png"/>
-    </td>
-</tr>
-</table>
 
 ## [Installation](INSTALL.md)
 

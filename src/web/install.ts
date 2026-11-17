@@ -1,4 +1,5 @@
-import { byId } from "./dom";
-
-const href = byId("manifest", HTMLDivElement).getAttribute("href");
-if (href) window.location.href = href;
+const link = document.getElementById("install-link");
+link?.addEventListener("click", () => {
+  const feedback = document.getElementById("install-feedback");
+  if (feedback) feedback.hidden = false;
+});

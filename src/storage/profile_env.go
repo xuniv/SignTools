@@ -121,6 +121,12 @@ func (p *envProfile) GetString(name FSName) (string, error) {
 	switch name {
 	case ProfileName:
 		return p.name, nil
+	case ProfileCertPass:
+		return p.certPass, nil
+	case ProfileAccountPass:
+		return p.accountPass, nil
+	case ProfileAccountName:
+		return p.accountName, nil
 	default:
 		return "", errors.New("unknown file name")
 	}

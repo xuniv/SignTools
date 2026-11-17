@@ -1,21 +1,52 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <script src="/js/theme.js"></script>
-    <title>SignTools | Install</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#167b54" />
+    <title>SignTools · Install {{.AppName}}</title>
     <link rel="icon" type="image/png" href="/favicon.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="stylesheet" href="/vendor/bootstrap/bootstrap.min.css" />
+    <script src="/js/theme.js"></script>
+    <link rel="stylesheet" href="/vendor/app.css" />
   </head>
   <body>
-    <div class="alert alert-success" role="alert">
-      <h4 class="alert-heading" style="word-break: break-all">{{.AppName}}</h4>
-      <p>Installation starting, expect a pop-up prompt...</p>
-      <hr />
-      <p class="mb-0">Feel free to close this page or go back when you are done.</p>
-    </div>
-    <div id="manifest" href="itms-services://?action=download-manifest&url={{.ManifestUrl}}"></div>
+    <main class="standalone">
+      <div class="standalone-card">
+        <a class="brand" href="/" target="_top"><img src="/favicon.png" alt="" />SignTools</a>
+        <div
+          class="mt-8 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+        >
+          <svg
+            width="26"
+            height="26"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path d="m5 12 4 4L19 6" />
+            <path d="M20 13v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9" />
+          </svg>
+        </div>
+        <h1>{{.AppName}}</h1>
+        <p>Your signed app is ready. Tap below, then confirm the installation on your device.</p>
+        <a
+          id="install-link"
+          class="primary-link"
+          href="itms-services://?action=download-manifest&amp;url={{.ManifestUrl}}"
+          target="_top"
+          >Install on this device</a
+        >
+        <p id="install-feedback" class="mt-4 text-xs" hidden>
+          Check your Home Screen for installation progress. You can safely close this page.
+        </p>
+        <p class="mt-4 text-xs">
+          iPhone or iPad required. If installation does not start, open this page in Safari and try again.
+        </p>
+        <a class="back-link" href="/" target="_top">Back to your library</a>
+      </div>
+    </main>
     <script type="module" src="/js/install.js"></script>
   </body>
 </html>

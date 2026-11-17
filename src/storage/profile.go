@@ -26,6 +26,9 @@ const (
 	ProfileName        = FSName("name.txt")
 	ProfileAccountName = FSName("account_name.txt")
 	ProfileAccountPass = FSName("account_pass.txt")
+	// Legacy hand-written password files keep their historical whitespace trimming.
+	// Browser uploads mark exact secret bytes so passwords with spaces survive reload.
+	ProfileRawSecrets = FSName(".raw-secrets")
 )
 
 type Profile interface {
@@ -36,9 +39,12 @@ type Profile interface {
 }
 
 func newProfile(id string) *profile {
-	return &profile{id: id, FileSystemBase: FileSystemBase{resolvePath: func(name FSName) string {
+	p := &profile{id: id, FileSystemBase: FileSystemBase{resolvePath: func(name FSName) string {
 		return util.SafeJoinFilePaths(profilesPath, id, string(name))
 	}}}
+	_, err := p.Stat(ProfileRawSecrets)
+	p.rawSecrets = err == nil
+	return p
 }
 
 func loadProfile(id string) (*profile, error) {
@@ -187,10 +193,24 @@ func processP12(originalP12 []byte, pass string) ([]byte, string, error) {
 }
 
 type profile struct {
-	id        string
-	teamId    string
-	fixedCert []byte
+	id         string
+	teamId     string
+	fixedCert  []byte
+	rawSecrets bool
 	FileSystemBase
+}
+
+func (p *profile) GetString(name FSName) (string, error) {
+	if p.rawSecrets && (name == ProfileCertPass || name == ProfileAccountPass) {
+		f, err := p.GetFile(name)
+		if err != nil {
+			return "", err
+		}
+		defer f.Close()
+		data, err := ioutil.ReadAll(f)
+		return string(data), err
+	}
+	return p.FileSystemBase.GetString(name)
 }
 
 func (p *profile) GetId() string {

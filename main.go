@@ -120,7 +120,12 @@ func serve(host string, port uint64) {
 	}()
 
 	log.Info().Msg("setting builder secrets")
-	for _, builder := range config.Current.Builder {
+	for id, builder := range config.BuilderSnapshot() {
+		// Browser-added builders can be repaired or removed in Settings even
+		// when their host is offline. startSign sets fresh secrets before use.
+		if config.IsManagedBuilder(id) {
+			continue
+		}
 		if err := setBuilderSecrets(builder); err != nil {
 			log.Fatal().Err(err).Send()
 		}
@@ -132,16 +137,7 @@ func serve(host string, port uint64) {
 	e.Logger = logger
 	e.Use(lecho.Middleware(lecho.Config{Logger: logger}))
 
-	forcedBasicAuth := middleware.BasicAuth(func(username string, password string, c echo.Context) (bool, error) {
-		return username == config.Current.BasicAuth.Username && password == config.Current.BasicAuth.Password, nil
-	})
-	basicAuth := func(f echo.HandlerFunc) echo.HandlerFunc {
-		if config.Current.BasicAuth.Enable {
-			return forcedBasicAuth(f)
-		} else {
-			return f
-		}
-	}
+	basicAuth := makeUserAuth()
 	workflowKeyAuth := middleware.KeyAuth(func(s string, c echo.Context) (bool, error) {
 		return s == config.Current.BuilderKey, nil
 	})
@@ -154,6 +150,14 @@ func serve(host string, port uint64) {
 
 	e.GET("/", renderIndex, basicAuth)
 	e.GET("/events", streamEvents, basicAuth)
+	e.GET("/api/state", getAPIState, basicAuth)
+	e.GET("/api/events", streamAPIEvents, basicAuth)
+	e.GET("/api/repository", getRepository, basicAuth)
+	registerManagementRoutes(e, basicAuth)
+	registerAuthRoutes(e)
+	if err := registerPWARoutes(e, basicAuth); err != nil {
+		log.Fatal().Err(err).Msg("initialize PWA")
+	}
 	static := staticHandler()
 	staticGzip := middleware.GzipWithConfig(middleware.GzipConfig{Skipper: skipStaticGzip})
 	e.GET("/favicon.png", static, basicAuth)
@@ -473,6 +477,7 @@ func uploadSignedApp(c echo.Context, job *storage.ReturnJob) error {
 	if !storage.Jobs.DeleteById(job.Id) {
 		return errors.New("unable to delete return job " + job.Id)
 	}
+	sendSigningComplete(app)
 	return c.NoContent(200)
 }
 
@@ -656,7 +661,11 @@ func selfHostedBuilder(app storage.App) (*builders.SelfHosted, bool) {
 	if err != nil {
 		return nil, false
 	}
-	builder, ok := config.Current.Builder[builderId].(*builders.SelfHosted)
+	configuredBuilder, found := config.GetBuilder(builderId)
+	if !found {
+		return nil, false
+	}
+	builder, ok := configuredBuilder.(*builders.SelfHosted)
 	return builder, ok
 }
 
@@ -763,7 +772,7 @@ func uploadUnsignedApp(c echo.Context) error {
 		return errors.New("no profile with id " + profileId)
 	}
 	builderId := c.FormValue(formNames.FormBuilderId)
-	builder, ok := config.Current.Builder[builderId]
+	builder, ok := config.GetBuilder(builderId)
 	if !ok {
 		return errors.New("no builder with id " + builderId)
 	}
@@ -773,9 +782,22 @@ func uploadUnsignedApp(c echo.Context) error {
 	fileId := c.FormValue(formNames.FormFileId)
 	fileUrl := c.FormValue(formNames.FormFileUrl)
 	if fileUrl != "" {
-		resp, err := http.Get(fileUrl)
+		var resp *http.Response
+		var err error
+		if c.FormValue("source_import") == "true" {
+			if _, err := publicSourceURL(fileUrl); err != nil {
+				return echo.NewHTTPError(http.StatusBadRequest, "Source downloads require a public HTTPS URL")
+			}
+			req, reqErr := http.NewRequestWithContext(c.Request().Context(), http.MethodGet, fileUrl, nil)
+			if reqErr != nil {
+				return echo.NewHTTPError(http.StatusBadRequest, "Invalid download URL")
+			}
+			resp, err = sourceDownloadClient.Do(req)
+		} else {
+			resp, err = http.Get(fileUrl)
+		}
 		if err != nil {
-			return c.String(400, "Failed to download app from url: "+err.Error())
+			return c.String(400, "Failed to download app; check the URL and server access")
 		}
 		if resp.StatusCode < 200 || resp.StatusCode > 299 {
 			resp.Body.Close()
@@ -783,7 +805,8 @@ func uploadUnsignedApp(c echo.Context) error {
 		}
 		file = resp.Body
 		defer file.Close()
-		fileName = filepath.Base(fileUrl)
+		parsedURL, _ := url.Parse(fileUrl)
+		fileName = path.Base(parsedURL.Path)
 	} else if app, ok := storage.Apps.Get(fileId); ok {
 		readonlyFile, err := app.GetFile(storage.AppUnsignedFile)
 		if err != nil {
@@ -896,8 +919,14 @@ func uploadUnsignedApp(c echo.Context) error {
 			return err
 		}
 	}
+	if err := scopeSigningNotification(c, app.GetId()); err != nil {
+		return err
+	}
 	if err := startSign(app, builder); err != nil {
 		return err
+	}
+	if c.Request().Header.Get("X-Requested-With") != "" {
+		return c.JSON(http.StatusCreated, map[string]string{"appId": app.GetId()})
 	}
 	return actionDone(c, "/")
 }
@@ -907,7 +936,7 @@ func resignApp(c echo.Context, app storage.App) error {
 	if err != nil {
 		return err
 	}
-	builder, ok := config.Current.Builder[builderId]
+	builder, ok := config.GetBuilder(builderId)
 	if !ok {
 		return errors.New("no builder with id " + builderId)
 	}
@@ -981,6 +1010,12 @@ func buildAppViews() ([]assets.App, error) {
 			workflowUrl = path.Join("/apps", app.GetId(), "status")
 		}
 		bundleId, _ := app.GetString(storage.AppBundleId)
+		originalBundleId, err := app.GetString(storage.AppOriginalBundleId)
+		if os.IsNotExist(err) {
+			// One-time migration reads the original IPA without changing its date.
+			_ = app.SaveInfo()
+			originalBundleId, _ = app.GetString(storage.AppOriginalBundleId)
+		}
 		version, _ := app.GetString(storage.AppVersion)
 		platform, _ := app.GetString(storage.AppPlatform)
 		profileId, err := app.GetString(storage.AppProfileId)
@@ -1022,10 +1057,11 @@ func buildAppViews() ([]assets.App, error) {
 			Id:                  app.GetId(),
 			Status:              status,
 			Name:                name,
-			ModTime:             modTime.Format(time.RFC822),
+			ModTime:             modTime.UTC().Format(time.RFC3339),
 			WorkflowUrl:         workflowUrl,
 			ProfileName:         profileName,
 			BundleId:            bundleId,
+			GroupId:             originalBundleId,
 			Version:             version,
 			IsMac:               platform == storage.PlatformMac,
 			InstallUrl:          path.Join("/apps", app.GetId(), "install"),
@@ -1080,10 +1116,10 @@ func renderIndex(c echo.Context) error {
 			IsAccount: isAccount,
 		})
 	}
-	for builderId := range config.Current.Builder {
+	for builderId := range config.BuilderSnapshot() {
 		data.Builders = append(data.Builders, assets.Builder{
 			Id:   builderId,
-			Name: builderId,
+			Name: config.BuilderName(builderId),
 		})
 	}
 	sort.Slice(data.Builders, func(i, j int) bool {
@@ -1095,6 +1131,7 @@ func renderIndex(c echo.Context) error {
 	if err := indexTemplate.Execute(&result, data); err != nil {
 		return err
 	}
+	c.Response().Header().Set("Cache-Control", "no-store")
 	return c.HTMLBlob(200, result.Bytes())
 }
 
@@ -1304,7 +1341,7 @@ func getTweakViews() ([]assets.Tweak, error) {
 		}
 		modTime := ""
 		if t, err := tweak.GetModTime(); err == nil {
-			modTime = t.Format(time.RFC822)
+			modTime = t.UTC().Format(time.RFC3339)
 		}
 		views = append(views, assets.Tweak{
 			Id:          tweak.GetId(),

@@ -10,12 +10,12 @@ import (
 )
 
 type SemaphoreData struct {
-	Enable      bool   `yaml:"enable"`
-	ProjectName string `yaml:"project_name"`
-	OrgName     string `yaml:"org_name"`
-	Token       string `yaml:"token"`
-	Ref         string `yaml:"ref"`
-	SecretName  string `yaml:"secret_name"`
+	Enable      bool   `yaml:"enable" json:"enable"`
+	ProjectName string `yaml:"project_name" json:"project_name"`
+	OrgName     string `yaml:"org_name" json:"org_name"`
+	Token       string `yaml:"token" json:"token"`
+	Ref         string `yaml:"ref" json:"ref"`
+	SecretName  string `yaml:"secret_name" json:"secret_name"`
 }
 
 func MakeSemaphore(data *SemaphoreData) *Semaphore {

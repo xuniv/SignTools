@@ -2,7 +2,7 @@
 FROM --platform=$BUILDPLATFORM oven/bun:1.4.4-alpine@sha256:4cf82f5686b196504fe119db3fcd9185b191f82ece82c40680e597228ec6070a AS web
 
 WORKDIR /src
-COPY package.json bun.lock bunfig.toml ./
+COPY package.json bun.lock bunfig.toml tsconfig.json components.json ./
 RUN bun install --frozen-lockfile --ignore-scripts
 COPY scripts scripts
 COPY src/web src/web
@@ -17,7 +17,7 @@ COPY --from=web /src/src/assets/vendor src/assets/vendor
 
 RUN apk add --no-cache git && \
     go mod download && \
-    CGO_ENABLED=0 go build -ldflags="-s -w" -buildvcs=false -o "SignTools"
+    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -buildid=" -buildvcs=false -o "SignTools"
 
 FROM scratch
 

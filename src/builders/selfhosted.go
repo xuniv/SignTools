@@ -12,9 +12,9 @@ import (
 )
 
 type SelfHostedData struct {
-	Enable bool   `yaml:"enable"`
-	Url    string `yaml:"url"`
-	Key    string `yaml:"key"`
+	Enable bool   `yaml:"enable" json:"enable"`
+	Url    string `yaml:"url" json:"url"`
+	Key    string `yaml:"key" json:"key"`
 }
 
 func MakeSelfHosted(data *SelfHostedData) *SelfHosted {

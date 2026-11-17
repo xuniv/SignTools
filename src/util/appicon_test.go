@@ -243,6 +243,16 @@ func plistWith(entries string) []byte {
 	return []byte(`<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict>` + entries + `</dict></plist>`)
 }
 
+func TestReadAppInfoOriginalIdentity(t *testing.T) {
+	ipa := makeIPA(t, map[string][]byte{
+		"Payload/Test.app/Info.plist": plistWith(`<key>CFBundleIdentifier</key><string>com.example.original</string><key>CFBundleShortVersionString</key><string>2.1</string>`),
+	})
+	info, err := ReadAppInfo(ipa, ipa.Size())
+	require.NoError(t, err)
+	assert.Equal(t, "com.example.original", info.BundleID)
+	assert.Equal(t, "2.1", info.Version)
+}
+
 func TestReadAppInfoVersion(t *testing.T) {
 	for _, tc := range []struct{ entries, want string }{
 		{`<key>CFBundleShortVersionString</key><string> 4.11.3 </string><key>CFBundleVersion</key><string>1234</string>`, "4.11.3"},

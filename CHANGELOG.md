@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.1.0-1 (2026-11-17)
+
+- Replace the web interface with a responsive shadcn/ui PWA, grouped app versions, search, saved builder/profile preferences, and embedded installation pages.
+- Add optional home-screen Web Push completion notifications and a login page using existing Basic authentication credentials.
+- Add optional `extra_conf` builders, aliases, defaults, and AltStore-compatible sources while preserving existing configurations.
+- Manage additional builders and upload signing profiles/certificates from the browser; keep credentials on the server.
+- Display collapsed builder activity and browse external repositories and IPA versions.
+- Publish stable incremental fork patches, portable binaries with checksums, and GHCR containers through a manual release workflow.
+
 ## [3.1.0](https://github.com/SignTools/SignTools/compare/v3.0.13...v3.1.0) (2026-11-11)
 
 

@@ -13,12 +13,12 @@ import (
 )
 
 type GitHubData struct {
-	Enable           bool   `yaml:"enable"`
-	RepoName         string `yaml:"repo_name"`
-	OrgName          string `yaml:"org_name"`
-	WorkflowFileName string `yaml:"workflow_file_name"`
-	Token            string `yaml:"token"`
-	Ref              string `yaml:"ref"`
+	Enable           bool   `yaml:"enable" json:"enable"`
+	RepoName         string `yaml:"repo_name" json:"repo_name"`
+	OrgName          string `yaml:"org_name" json:"org_name"`
+	WorkflowFileName string `yaml:"workflow_file_name" json:"workflow_file_name"`
+	Token            string `yaml:"token" json:"token"`
+	Ref              string `yaml:"ref" json:"ref"`
 }
 
 func MakeGitHub(data *GitHubData) *GitHub {

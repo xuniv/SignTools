@@ -37,7 +37,7 @@ It's easier if you use your personal computer for the initial configuration. Thi
 
 You need to create a configuration file which links the web service to your builder.
 
-1. Download the correct [binary release](https://github.com/SignTools/SignTools/releases) for your computer
+1. Download the correct [binary release](https://github.com/xuniv/SignTools/releases) for your computer
 2. Run it once — it will exit immediately, saying that it has generated a configuration file
 3. In the same folder as the binary, you will find a new file `signer-cfg.yml` — open it with your favorite text editor and configure the settings using the explanations below. The lines that start with a hashtag `#` are comments, you do not need to touch them.
 
@@ -96,6 +96,8 @@ basic_auth:
   # don't forget to change the password
   password: "admin"
 ```
+
+For optional PWA, login-page, extra builder, default selection, and repository settings under `extra_conf`, see [the fork configuration guide](docs/FORK.md). All fields below remain compatible with upstream SignTools.
 
 ### 2.2. Signing profile
 
@@ -165,19 +167,19 @@ You have three options:
 
 ### 3a. Normal
 
-1. Download the correct [binary release](https://github.com/SignTools/SignTools/releases) (if this is a different computer than you used before)
+1. Download the correct [binary release](https://github.com/xuniv/SignTools/releases) (if this is a different computer than you used before)
 2. Move the configuration files you made in sections `2.1.` and `2.2.` of this guide to the same folder as the binary you just downloaded
 
 ### 3b. Docker
 
-1. Use the official [Docker image](https://hub.docker.com/r/signtools/signtools). `latest` is the newest release; `dev` is built from every change to `master` and may be unstable
+1. Use this fork's [GHCR image](https://github.com/xuniv/SignTools/pkgs/container/signtools): `ghcr.io/xuniv/signtools:latest`. Pin a full patch tag such as `3.1.0-1` for reproducible deployments.
 2. Move and [mount](https://docs.docker.com/storage/volumes/) the configuration files from sections `2.1.` and `2.2.`:
    - `./signer-cfg.yml:/signer-cfg.yml`
    - `./data:/data` (or whatever you set in `save_dir`)
 
 ### 3c. From source
 
-1. Install [Go](https://go.dev/dl/) and [Bun](https://bun.sh/)
+1. Install [Go](https://go.dev/dl/) 1.27.4 and [Bun](https://bun.sh/) 1.4.4 (the versions used by CI and Docker)
 2. Build the web UI files, which are embedded into the binary: `bun install --frozen-lockfile && bun run build`
 3. Build the binary: `go build`
 4. Continue as in `3a.`, with the binary you just built

@@ -7,6 +7,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"os"
 	"sort"
+	"sync"
 )
 
 func newProfileResolver() *profileResolver {
@@ -16,10 +17,13 @@ func newProfileResolver() *profileResolver {
 }
 
 type profileResolver struct {
+	mu             sync.RWMutex
 	idToProfileMap map[string]Profile
 }
 
 func (r *profileResolver) refresh() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	idDirs, err := os.ReadDir(profilesPath)
 	if err != nil {
 		return errors.WithMessage(err, "read profiles dir")
@@ -43,6 +47,8 @@ func (r *profileResolver) refresh() error {
 }
 
 func (r *profileResolver) GetAll() ([]Profile, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	var profiles []Profile
 	for _, profile := range r.idToProfileMap {
 		profiles = append(profiles, profile)
@@ -56,6 +62,8 @@ func (r *profileResolver) GetAll() ([]Profile, error) {
 }
 
 func (r *profileResolver) GetById(id string) (Profile, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	profile, ok := r.idToProfileMap[id]
 	if !ok {
 		return nil, false

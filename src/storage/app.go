@@ -13,21 +13,22 @@ import (
 )
 
 const (
-	AppRoot         = FSName("")
-	AppSignArgs     = FSName("sign_args")
-	AppBundleId     = FSName("bundle_id")
-	AppSignedFile   = FSName("signed")
-	AppUnsignedFile = FSName("unsigned")
-	AppName         = FSName("name")
-	AppUserBundleId = FSName("user_bundle_id")
-	AppWorkflowUrl  = FSName("workflow_url")
-	AppProfileId    = FSName("profile_id")
-	AppBuilderId    = FSName("builder_id")
-	AppBundleName   = FSName("bundle_name")
-	AppIcon         = FSName("icon")
-	AppVersion      = FSName("version")
-	AppPlatform     = FSName("platform")
-	TweaksDir       = FSName("tweaks")
+	AppRoot             = FSName("")
+	AppSignArgs         = FSName("sign_args")
+	AppBundleId         = FSName("bundle_id")
+	AppOriginalBundleId = FSName("original_bundle_id")
+	AppSignedFile       = FSName("signed")
+	AppUnsignedFile     = FSName("unsigned")
+	AppName             = FSName("name")
+	AppUserBundleId     = FSName("user_bundle_id")
+	AppWorkflowUrl      = FSName("workflow_url")
+	AppProfileId        = FSName("profile_id")
+	AppBuilderId        = FSName("builder_id")
+	AppBundleName       = FSName("bundle_name")
+	AppIcon             = FSName("icon")
+	AppVersion          = FSName("version")
+	AppPlatform         = FSName("platform")
+	TweaksDir           = FSName("tweaks")
 )
 
 type App interface {
@@ -153,6 +154,9 @@ func (a *app) SaveInfo() error {
 	}
 	if err := a.SetString(AppPlatform, platform); err != nil {
 		return errors.WithMessagef(err, "set %s", AppPlatform)
+	}
+	if err := a.SetString(AppOriginalBundleId, info.BundleID); err != nil {
+		return errors.WithMessagef(err, "set %s", AppOriginalBundleId)
 	}
 	if err := a.SetString(AppVersion, info.Version); err != nil {
 		return errors.WithMessagef(err, "set %s", AppVersion)

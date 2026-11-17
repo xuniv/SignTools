@@ -1,0 +1,257 @@
+@import "tailwindcss";
+@source "./";
+@custom-variant dark (&:is(.dark *));
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--foreground);
+  --color-popover: var(--card);
+  --color-popover-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: #ffffff;
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--foreground);
+  --color-muted: var(--secondary);
+  --color-muted-foreground: var(--muted);
+  --color-accent: var(--secondary);
+  --color-accent-foreground: var(--foreground);
+  --color-destructive: #e5484d;
+  --color-destructive-foreground: #ffffff;
+  --color-border: var(--border);
+  --color-input: var(--border);
+  --color-ring: var(--primary);
+  --radius-lg: 0.85rem;
+  --radius-md: 0.6rem;
+  --radius-sm: 0.4rem;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+:root {
+  --background: #fafbfa;
+  --foreground: #202722;
+  --card: #ffffff;
+  --secondary: #f0f3f0;
+  --muted: #788179;
+  --border: #e4e9e4;
+  --primary: #167b54;
+}
+.dark {
+  --background: #121714;
+  --foreground: #eaf0eb;
+  --card: #19201b;
+  --secondary: #242d26;
+  --muted: #96a59a;
+  --border: #303b33;
+  --primary: #25966b;
+  color-scheme: dark;
+}
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    margin: 0;
+    font-size: 14px;
+  }
+  button,
+  a,
+  input,
+  select {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button,
+  a {
+    touch-action: manipulation;
+  }
+  button:not(:disabled),
+  summary {
+    cursor: pointer;
+  }
+  input[type="checkbox"],
+  input[type="radio"] {
+    accent-color: var(--primary);
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+  ::selection {
+    background: #c9e6d4;
+    color: #163f29;
+  }
+  :focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 3px;
+  }
+}
+@layer components {
+  .field {
+    @apply grid gap-2;
+  }
+  .field > label {
+    @apply text-xs font-medium;
+  }
+  .select {
+    @apply flex h-10 w-full min-w-0 rounded-md border bg-card px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50;
+  }
+  .eyebrow {
+    @apply text-[10px] font-semibold uppercase tracking-[.17em] text-muted-foreground;
+  }
+  .page-title {
+    @apply text-[30px] font-semibold leading-tight tracking-[-.045em] sm:text-[36px];
+  }
+  .surface {
+    @apply rounded-xl border bg-card;
+  }
+  .subtle-button {
+    @apply inline-flex items-center gap-2 rounded-md px-2.5 py-2 text-xs font-medium text-muted-foreground hover:bg-secondary hover:text-foreground;
+  }
+  .status {
+    @apply inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-medium;
+  }
+  .status::before {
+    content: "";
+    @apply h-1 w-1 rounded-full bg-current;
+  }
+  .status-ready {
+    @apply bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300;
+  }
+  .status-working {
+    @apply bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300;
+  }
+  .status-failed {
+    @apply bg-red-50 text-red-600 dark:bg-red-950/50 dark:text-red-300;
+  }
+  .nav-link {
+    @apply flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground;
+  }
+  .nav-link[data-active="true"] {
+    @apply bg-emerald-50 font-semibold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300;
+  }
+  .nav-link[data-active="true"] svg {
+    @apply text-emerald-700 dark:text-emerald-400;
+  }
+  .dialog-scroll {
+    max-height: calc(100dvh - 12rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 2px 2px 8px;
+  }
+  .standalone {
+    min-height: 100dvh;
+    padding: max(28px, env(safe-area-inset-top)) 20px max(28px, env(safe-area-inset-bottom));
+    display: grid;
+    place-items: center;
+  }
+  .standalone-card {
+    width: 100%;
+    max-width: 420px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    border-radius: 20px;
+    padding: 32px;
+    box-shadow: 0 12px 50px #15331b06;
+  }
+  .standalone-card h1 {
+    font-size: 26px;
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    margin: 24px 0 8px;
+    overflow-wrap: anywhere;
+  }
+  .standalone-card p {
+    color: var(--muted);
+    line-height: 1.7;
+    margin: 8px 0 20px;
+  }
+  .standalone-card .brand {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--primary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .standalone-card .brand img {
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+  }
+  .standalone-card input {
+    width: 100%;
+    border: 1px solid var(--border);
+    background: transparent;
+    border-radius: 8px;
+    min-height: 44px;
+    padding: 10px 12px;
+    margin: 8px 0 18px;
+  }
+  .standalone-card label {
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .standalone-card .primary-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--primary);
+    color: white;
+    border: 0;
+    border-radius: 9px;
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 14px;
+    font-weight: 500;
+    text-decoration: none;
+  }
+  .standalone-card .back-link {
+    display: block;
+    color: var(--muted);
+    font-size: 12px;
+    text-align: center;
+    text-decoration: none;
+    margin-top: 20px;
+  }
+}
+@media (max-width: 767px) {
+  .app-main {
+    padding-bottom: calc(92px + env(safe-area-inset-bottom));
+  }
+  .mobile-nav {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  [data-radix-popper-content-wrapper] {
+    max-width: calc(100vw - 20px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.enter {
+  animation: enter 0.25s ease-out;
+}
+
+/* iOS zooms the viewport when focusing form controls below 16px. */
+@media (max-width: 767px) {
+  .app-main input:not([type="file"]),
+  .app-main select,
+  [role="dialog"] input:not([type="file"]),
+  [role="dialog"] select {
+    font-size: 16px;
+  }
+}
