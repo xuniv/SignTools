@@ -3,6 +3,15 @@ export interface AppItem {
   Status: number;
   Name: string;
   GroupId?: string;
+  DisplayName?: string;
+  OriginalDisplayName?: string;
+  SignedDisplayName?: string;
+  SignedBundleId?: string;
+  OriginalVersion?: string;
+  OriginalBuildVersion?: string;
+  BuildVersion?: string;
+  InstallOnly?: boolean;
+  Encryption?: string;
   BundleId: string;
   Version: string;
   ModTime: string;
@@ -78,13 +87,68 @@ export interface RepoData {
   name: string;
   apps: RepoApp[];
 }
+export interface Artifact {
+  id: string;
+  name: string;
+  bundleId: string;
+  displayName: string;
+  version: string;
+  buildVersion: string;
+  platform: string;
+  encryption: "encrypted" | "decrypted" | "unknown" | "unencrypted";
+  source: "upload" | "ipatool" | "unfairplay";
+  createdAt: string;
+  downloadUrl: string;
+  installUrl?: string;
+  appId?: string;
+  originalId?: string;
+  limitations?: string[];
+}
+export interface UploadSource {
+  id?: string;
+  libraryId?: string;
+  name?: string;
+  url?: string;
+  metadata?: Partial<Artifact>;
+}
+export interface SignedVariant {
+  id: string;
+  bundleId: string;
+  displayName: string;
+  builds: AppItem[];
+}
 export interface AppGroup {
   id: string;
   name: string;
   icon: string;
   bundleId: string;
-  versions: { version: string; builds: AppItem[] }[];
+  versions: { version: string; variants: SignedVariant[]; builds: AppItem[] }[];
   apps: AppItem[];
+}
+export function sourceFromApp(app: AppItem): UploadSource {
+  return {
+    id: app.Id,
+    name: app.Name,
+    metadata: {
+      bundleId: app.GroupId || app.BundleId,
+      displayName: app.OriginalDisplayName || app.DisplayName || app.Name,
+      version: app.OriginalVersion || app.Version,
+      buildVersion: app.OriginalBuildVersion || app.BuildVersion || "",
+    },
+  };
+}
+export interface OutputDraft {
+  bundleId: string;
+  displayName: string;
+  bundleIdEdited: boolean;
+  displayNameEdited: boolean;
+}
+export function prefillOutput(current: OutputDraft, metadata: Partial<Artifact>): OutputDraft {
+  return {
+    ...current,
+    bundleId: current.bundleIdEdited ? current.bundleId : metadata.bundleId || "",
+    displayName: current.displayNameEdited ? current.displayName : metadata.displayName || "",
+  };
 }
 
 // Numeric app versions and SemVer prereleases sort naturally, with stable releases first.
@@ -133,18 +197,38 @@ export function groupApps(apps: AppItem[]): AppGroup[] {
     .map(([id, items]) => {
       items.sort(
         (a, b) =>
-          compareVersions(b.Version, a.Version) ||
+          compareVersions(b.OriginalVersion || b.Version, a.OriginalVersion || a.Version) ||
           Date.parse(b.ModTime) - Date.parse(a.ModTime) ||
           a.Id.localeCompare(b.Id),
       );
       const versions = new Map<string, AppItem[]>();
-      for (const item of items) versions.set(item.Version, [...(versions.get(item.Version) || []), item]);
+      for (const item of items) {
+        const version = item.OriginalVersion || item.Version;
+        versions.set(version, [...(versions.get(version) || []), item]);
+      }
       return {
         id,
-        name: items[0]!.Name,
+        name: items[0]!.OriginalDisplayName || items[0]!.DisplayName || items[0]!.Name,
         icon: items[0]!.IconUrl,
         bundleId: items[0]!.GroupId || items[0]!.BundleId,
-        versions: [...versions].map(([version, builds]) => ({ version, builds })),
+        versions: [...versions].map(([version, builds]) => {
+          const variants = new Map<string, AppItem[]>();
+          for (const build of builds) {
+            const bundleId = build.SignedBundleId || build.BundleId || build.GroupId || "";
+            variants.set(bundleId, [...(variants.get(bundleId) || []), build]);
+          }
+          return {
+            version,
+            builds,
+            variants: [...variants].map(([bundleId, variantBuilds]) => ({
+              id: bundleId,
+              bundleId,
+              displayName:
+                variantBuilds[0]!.SignedDisplayName || variantBuilds[0]!.DisplayName || variantBuilds[0]!.Name,
+              builds: variantBuilds,
+            })),
+          };
+        }),
         apps: items,
       };
     })

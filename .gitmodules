@@ -1,0 +1,8 @@
+[submodule "third_party/ipatool"]
+	path = third_party/ipatool
+	url = https://github.com/majd/ipatool.git
+	branch = main
+[submodule "third_party/unfairplay"]
+	path = third_party/unfairplay
+	url = https://github.com/DrWhax/unfairplay.git
+	branch = main

@@ -48,6 +48,7 @@ func (u *upload) GetInfo() (handler.FileInfo, error) {
 	if err != nil {
 		return info, errors.WithMessagef(err, "get %s", fileName)
 	}
+	defer file.Close()
 	fileBytes, err := io.ReadAll(file)
 	if err != nil {
 		return info, errors.WithMessagef(err, "read uplodaded file info")

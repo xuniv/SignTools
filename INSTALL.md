@@ -180,9 +180,12 @@ You have three options:
 ### 3c. From source
 
 1. Install [Go](https://go.dev/dl/) 1.27.4 and [Bun](https://bun.sh/) 1.4.4 (the versions used by CI and Docker)
-2. Build the web UI files, which are embedded into the binary: `bun install --frozen-lockfile && bun run build`
-3. Build the binary: `go build`
-4. Continue as in `3a.`, with the binary you just built
+2. Clone with `git clone --recurse-submodules https://github.com/xuniv/SignTools.git`, or run `git submodule update --init --recursive` inside an existing checkout. The pinned `third_party/ipatool` and `third_party/unfairplay` sources are required.
+3. Build the web UI files, which are embedded into the binary: `bun install --frozen-lockfile && bun run build`
+4. Build the binary: `go build -trimpath -buildvcs=false`
+5. Continue as in `3a.`, with the binary you just built
+
+The 64-bit App Store engine requires the host's shared-library loader and a writable runtime cache. Official 64-bit containers include the loader and set `XDG_CACHE_HOME=/data/cache`; mount `/data` to preserve downloaded public runtime assets. See [App Store, decryption, and encrypted vault setup](docs/STORE.md) for supported hosts and backup/migration details.
 
 ## 4. Web service execution
 

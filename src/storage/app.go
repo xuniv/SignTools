@@ -13,27 +13,37 @@ import (
 )
 
 const (
-	AppRoot             = FSName("")
-	AppSignArgs         = FSName("sign_args")
-	AppBundleId         = FSName("bundle_id")
-	AppOriginalBundleId = FSName("original_bundle_id")
-	AppSignedFile       = FSName("signed")
-	AppUnsignedFile     = FSName("unsigned")
-	AppName             = FSName("name")
-	AppUserBundleId     = FSName("user_bundle_id")
-	AppWorkflowUrl      = FSName("workflow_url")
-	AppProfileId        = FSName("profile_id")
-	AppBuilderId        = FSName("builder_id")
-	AppBundleName       = FSName("bundle_name")
-	AppIcon             = FSName("icon")
-	AppVersion          = FSName("version")
-	AppPlatform         = FSName("platform")
-	TweaksDir           = FSName("tweaks")
+	AppRoot                = FSName("")
+	AppSignArgs            = FSName("sign_args")
+	AppBundleId            = FSName("bundle_id")
+	AppOriginalBundleId    = FSName("original_bundle_id")
+	AppOriginalDisplayName = FSName("original_display_name")
+	AppBuildVersion        = FSName("build_version")
+	AppEncryption          = FSName("encryption")
+	AppSignedBundleId      = FSName("signed_bundle_id")
+	AppSignedDisplayName   = FSName("signed_display_name")
+	AppSignedVersion       = FSName("signed_version")
+	AppSignedBuildVersion  = FSName("signed_build_version")
+	AppSignedEncryption    = FSName("signed_encryption")
+	AppInstallOnly         = FSName("install_only")
+	AppSignedFile          = FSName("signed")
+	AppUnsignedFile        = FSName("unsigned")
+	AppName                = FSName("name")
+	AppUserBundleId        = FSName("user_bundle_id")
+	AppWorkflowUrl         = FSName("workflow_url")
+	AppProfileId           = FSName("profile_id")
+	AppBuilderId           = FSName("builder_id")
+	AppBundleName          = FSName("bundle_name")
+	AppIcon                = FSName("icon")
+	AppVersion             = FSName("version")
+	AppPlatform            = FSName("platform")
+	TweaksDir              = FSName("tweaks")
 )
 
 type App interface {
 	GetId() string
 	SaveInfo() error
+	CaptureSignedInfo() error
 	IsSigned() (bool, error)
 	GetModTime() (time.Time, error)
 	ResetModTime() error
@@ -158,6 +168,11 @@ func (a *app) SaveInfo() error {
 	if err := a.SetString(AppOriginalBundleId, info.BundleID); err != nil {
 		return errors.WithMessagef(err, "set %s", AppOriginalBundleId)
 	}
+	for field, value := range map[FSName]string{AppOriginalDisplayName: info.DisplayName, AppBuildVersion: info.BuildVersion, AppEncryption: info.Encryption} {
+		if err := a.SetString(field, value); err != nil {
+			return errors.WithMessagef(err, "set %s", field)
+		}
+	}
 	if err := a.SetString(AppVersion, info.Version); err != nil {
 		return errors.WithMessagef(err, "set %s", AppVersion)
 	}
@@ -165,6 +180,36 @@ func (a *app) SaveInfo() error {
 		return readErr
 	}
 	return errors.WithMessage(info.IconErr, "extract icon")
+}
+
+// CaptureSignedInfo reads the returned IPA itself. Signing can alter both the
+// bundle identifier and display name; builder form fields are not proof of either.
+func (a *app) CaptureSignedInfo() error {
+	file, err := a.GetFile(AppSignedFile)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	stat, err := file.Stat()
+	if err != nil {
+		return err
+	}
+	info, err := util.ReadAppMetadata(file, stat.Size())
+	if err != nil {
+		return err
+	}
+	if info.BundleID == "" {
+		return errors.New("signed IPA has no main bundle identifier")
+	}
+	for field, value := range map[FSName]string{
+		AppSignedBundleId: info.BundleID, AppBundleId: info.BundleID, AppSignedDisplayName: info.DisplayName,
+		AppSignedVersion: info.Version, AppSignedBuildVersion: info.BuildVersion, AppSignedEncryption: info.Encryption,
+	} {
+		if err := a.SetString(field, value); err != nil {
+			return errors.WithMessagef(err, "save signed %s", field)
+		}
+	}
+	return nil
 }
 
 func (a *app) readInfo() (*util.AppInfo, error) {

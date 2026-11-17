@@ -34,8 +34,8 @@ save_dir: ` + dir + `
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(data), "extra_conf:") {
-		t.Fatal("legacy file acquired nonempty extra_conf")
+	if !strings.Contains(string(data), "enc_key:") || len(f.ExtraConf.EncKey) != 128 {
+		t.Fatal("legacy file did not acquire its private encryption key")
 	}
 	extra := legacy + `extra_conf:
   login_page: true

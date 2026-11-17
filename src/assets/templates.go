@@ -1,27 +1,36 @@
 package assets
 
 type App struct {
-	Id                  string
-	Status              int
-	Name                string
-	ModTime             string
-	WorkflowUrl         string
-	InstallUrl          string
-	DownloadSignedUrl   string
-	DownloadUnsignedUrl string
-	DownloadTweaksUrl   string
-	TwoFactorUrl        string
-	ResignUrl           string
-	DeleteUrl           string
-	RenameUrl           string
-	IconUrl             string
-	ProfileName         string
-	BundleId            string
-	GroupId             string
-	Version             string
-	IsMac               bool // the install page only works for iOS apps
-	TweakCount          int
-	TweakNames          string
+	Id                   string
+	Status               int
+	Name                 string
+	ModTime              string
+	WorkflowUrl          string
+	InstallUrl           string
+	DownloadSignedUrl    string
+	DownloadUnsignedUrl  string
+	DownloadTweaksUrl    string
+	TwoFactorUrl         string
+	ResignUrl            string
+	DeleteUrl            string
+	RenameUrl            string
+	IconUrl              string
+	ProfileName          string
+	BundleId             string
+	GroupId              string
+	DisplayName          string
+	OriginalDisplayName  string
+	SignedDisplayName    string
+	SignedBundleId       string
+	OriginalVersion      string
+	OriginalBuildVersion string
+	BuildVersion         string
+	Encryption           string
+	InstallOnly          bool
+	Version              string
+	IsMac                bool // the install page only works for iOS apps
+	TweakCount           int
+	TweakNames           string
 }
 
 const (
@@ -77,6 +86,7 @@ type ManifestData struct {
 	DownloadUrl string
 	BundleId    string
 	Title       string
+	Version     string
 }
 
 type RenameData struct {
@@ -89,6 +99,9 @@ type RenameData struct {
 type InstallData struct {
 	ManifestUrl string
 	AppName     string
+	Encryption  string
+	InstallOnly bool
+	Limitations []string
 }
 
 type Tweak struct {

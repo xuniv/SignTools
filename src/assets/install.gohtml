@@ -30,6 +30,15 @@
           </svg>
         </div>
         <h1>{{.AppName}}</h1>
+        {{if .InstallOnly}}
+        <p class="mt-3 text-xs">Original IPA · Signature preserved</p>
+        {{end}} {{range .Limitations}}
+        <p
+          class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200"
+        >
+          {{.}}
+        </p>
+        {{end}}
         <p>Your signed app is ready. Tap below, then confirm the installation on your device.</p>
         <a
           id="install-link"

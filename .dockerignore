@@ -1,3 +1,7 @@
 node_modules
 src/assets/js
 src/assets/vendor
+.git
+**/.git
+dist
+release-assets
