@@ -20,6 +20,8 @@ export type VaultAccount = {
 export type VaultModel = {
   id: string;
   name: string;
+  originalFilename?: string;
+  typeName?: string;
   selector?: string;
   formatVersion?: number | string;
   supported: boolean;

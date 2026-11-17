@@ -3,6 +3,7 @@ package main
 import (
 	"SignTools/src/decrypt"
 	"SignTools/src/library"
+	"SignTools/src/store"
 	"SignTools/src/tasks"
 	"SignTools/src/vault"
 	"context"
@@ -17,7 +18,9 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-const decryptRequestLimit = 8 << 20
+// A repair can carry the bounded encrypted account pool (32 MiB) alongside
+// 32 small enrollment models; neither is persisted by the server.
+const decryptRequestLimit = 40 << 20
 
 func registerDecryptRoutes(e *echo.Echo, auth echo.MiddlewareFunc) {
 	g := e.Group("/api/decrypt", auth)
@@ -86,35 +89,50 @@ func decodeOperationModels(input []decryptModelRequest) (_ []decrypt.Model, err 
 	}()
 	for index := range input {
 		model := &input[index]
+		decoded := decrypt.Model{ID: model.ID, Name: model.Name}
 		if (model.Data == "") == (model.Sealed == "") {
-			return nil, errors.New("Each model needs exactly one data or sealed value")
+			decoded.Problem = "model needs exactly one data or sealed value"
+			models = append(models, decoded)
+			continue
 		}
 		var data []byte
 		if model.Sealed != "" {
 			if len(model.Sealed) > (decrypt.MaxModelBytes+128)*4/3 {
-				return nil, errors.New("Enrollment model exceeds the supported size limit")
+				decoded.Problem = "enrollment model exceeds the supported size limit"
+				models = append(models, decoded)
+				continue
 			}
 			data, err = vault.Open("decrypt-model", model.Sealed)
 			if err != nil {
-				return nil, errors.New("Could not authenticate enrollment model; import it again in this browser")
+				decoded.Problem = "could not authenticate the sealed enrollment model; import it again in this browser"
+				models = append(models, decoded)
+				continue
 			}
 		} else {
 			if len(model.Data) > base64.StdEncoding.EncodedLen(decrypt.MaxModelBytes) {
-				return nil, errors.New("Enrollment model exceeds the supported size limit")
+				decoded.Problem = "enrollment model exceeds the supported size limit"
+				models = append(models, decoded)
+				continue
 			}
 			data, err = base64.StdEncoding.DecodeString(model.Data)
 			if err != nil {
 				clear(data)
-				return nil, errors.New("Enrollment model data must be valid base64")
+				decoded.Problem = "enrollment model data must be valid base64"
+				models = append(models, decoded)
+				continue
 			}
 		}
 		model.Data, model.Sealed = "", ""
 		if len(data) == 0 || len(data) > decrypt.MaxModelBytes {
 			clear(data)
-			return nil, errors.New("Enrollment model exceeds the supported size limit")
+			decoded.Problem = "enrollment model is empty or exceeds the supported size limit"
+			models = append(models, decoded)
+			continue
 		}
-		models = append(models, decrypt.Model{ID: model.ID, Data: data})
+		decoded.Data = data
+		models = append(models, decoded)
 	}
+	err = nil
 	return models, nil
 }
 
@@ -125,6 +143,7 @@ func decryptArtifact(c echo.Context) error {
 		Models           []decryptModelRequest `json:"models"`
 		ModelID          string                `json:"modelId,omitempty"`
 		StripAccountData bool                  `json:"stripAccountData,omitempty"`
+		RepairSessions   []string              `json:"repairSessions,omitempty"`
 	}
 	if err := decodeDecryptRequest(c, &body); err != nil {
 		return err
@@ -149,18 +168,28 @@ func decryptArtifact(c echo.Context) error {
 	if len(modelRequests) == 0 || len(modelRequests) > decrypt.MaxModels {
 		return echo.NewHTTPError(http.StatusBadRequest, "Provide between 1 and 32 enrollment models")
 	}
-	for _, model := range modelRequests {
-		if len(model.Data) > base64.StdEncoding.EncodedLen(decrypt.MaxModelBytes) || len(model.Sealed) > (decrypt.MaxModelBytes+128)*4/3 {
-			return echo.NewHTTPError(http.StatusRequestEntityTooLarge, "Enrollment model exceeds the supported size limit")
+	if len(body.RepairSessions) > 32 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Provide at most 32 account sessions for license repair")
+	}
+	var repairSessionBytes int
+	for _, sealed := range body.RepairSessions {
+		repairSessionBytes += len(sealed)
+		if len(sealed) > 4<<20 || repairSessionBytes > 32<<20 {
+			return echo.NewHTTPError(http.StatusRequestEntityTooLarge, "Encrypted account sessions exceed the license repair size limit")
 		}
 	}
 	owner, modelID, strip := body.ClientID, body.ModelID, body.StripAccountData
+	repairSessions := body.RepairSessions
 	task := tasks.Default.Start(owner, "decrypt", "Decrypt library IPA", func(ctx context.Context, reporter *tasks.Reporter) (any, error) {
 		defer func() {
 			for index := range modelRequests {
 				modelRequests[index].Data, modelRequests[index].Sealed = "", ""
 			}
 			modelRequests = nil
+			for index := range repairSessions {
+				repairSessions[index] = ""
+			}
+			repairSessions = nil
 		}()
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -174,10 +203,29 @@ func decryptArtifact(c echo.Context) error {
 				clear(model.Data)
 			}
 		}()
-		result, err := decrypt.Run(ctx, decrypt.Options{InputPath: source, Models: models, ModelID: modelID, StripAccountData: strip}, func(message string, fraction float64) {
-			reporter.Log(message)
-			reporter.Progress(fraction * 100)
-		})
+		run := func(input string) (*decrypt.Result, error) {
+			return decrypt.Run(ctx, decrypt.Options{InputPath: input, Models: models, ModelID: modelID, StripAccountData: strip}, func(message string, fraction float64) {
+				reporter.Log(message)
+				reporter.Progress(fraction * 100)
+			})
+		}
+		result, err := run(source)
+		var repaired *store.DownloadResult
+		if err != nil && decrypt.NeedsLicenseRepair(err) && artifact.Source == "ipatool" && len(repairSessions) > 0 && ctx.Err() == nil {
+			reporter.Log("Missing personalized licenses: restoring the exact acquired version with its matching account")
+			repair, repairErr := repairDecryptSource(ctx, store.RepairRequest{ClientID: owner, Sessions: repairSessions, ArtifactID: artifact.ID}, store.Progress{Log: reporter.Log, Update: func(value float64) { reporter.Progress(value * 100) }})
+			if repairErr != nil {
+				return nil, storeTaskRepairError(repairErr)
+			}
+			repaired = &repair
+			artifact = repair.Artifact
+			source, pathErr := library.Path(artifact.ID)
+			if pathErr != nil {
+				return nil, errors.New("could not open repaired source IPA")
+			}
+			reporter.Log("Retrying decryption once with the restored exact-version IPA and all supplied models")
+			result, err = run(source)
+		}
 		if err != nil {
 			if ctx.Err() != nil {
 				return nil, ctx.Err()
@@ -215,11 +263,49 @@ func decryptArtifact(c echo.Context) error {
 			return nil, err
 		}
 		return struct {
-			Artifact library.Artifact `json:"artifact"`
-			Report   decrypt.Report   `json:"report"`
-			ModelID  string           `json:"modelId"`
-			ModelIDs []string         `json:"modelIds,omitempty"`
-		}{imported, result.Report, result.ModelID, result.ModelIDs}, nil
+			Artifact       library.Artifact       `json:"artifact"`
+			Report         decrypt.Report         `json:"report"`
+			ModelID        string                 `json:"modelId"`
+			ModelIDs       []string               `json:"modelIds,omitempty"`
+			ModelsTried    []decrypt.ModelAttempt `json:"modelsTried"`
+			SelectedModels []decrypt.ModelAttempt `json:"selectedModels"`
+			LicenseCopies  []decrypt.LicenseCopy  `json:"licenseCopies,omitempty"`
+			SourceArtifact library.Artifact       `json:"sourceArtifact"`
+			RepairInfo     *decryptRepairInfo     `json:"repairInfo,omitempty"`
+			Session        string                 `json:"session,omitempty"`
+			Account        *store.Account         `json:"account,omitempty"`
+		}{Artifact: imported, Report: result.Report, ModelID: result.ModelID, ModelIDs: result.ModelIDs, ModelsTried: result.ModelsTried, SelectedModels: result.SelectedModels, LicenseCopies: result.LicenseCopies, SourceArtifact: artifact, RepairInfo: repairInfo(repaired), Session: repairSession(repaired), Account: repairAccount(repaired)}, nil
 	})
 	return c.JSON(http.StatusAccepted, task)
+}
+
+// Indirection permits local end-to-end repair tests without contacting Apple.
+var repairDecryptSource = store.RepairFromSessions
+
+type decryptRepairInfo struct {
+	Repaired   bool   `json:"repaired"`
+	ArtifactID string `json:"artifactId"`
+}
+
+func repairInfo(result *store.DownloadResult) *decryptRepairInfo {
+	if result == nil {
+		return nil
+	}
+	return &decryptRepairInfo{Repaired: true, ArtifactID: result.Artifact.ID}
+}
+func repairSession(result *store.DownloadResult) string {
+	if result == nil {
+		return ""
+	}
+	return result.Session
+}
+func repairAccount(result *store.DownloadResult) *store.Account {
+	if result == nil {
+		return nil
+	}
+	return &result.Account
+}
+
+func storeTaskRepairError(err error) error {
+	return tasks.PublicError(err.Error())
 }

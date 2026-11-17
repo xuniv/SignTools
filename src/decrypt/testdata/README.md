@@ -16,6 +16,8 @@ only by setting the optional pre-encryption hash-table offset to zero.
 
 The models use the upstream v2 public synthetic codec. `wrong-key-model.bin`
 changes the codec AES key while retaining its selector and valid structure.
-`unbound-v1-model.bin` uses the same codec without a selector and is intentionally
-rejected by SignTools for automatic model selection. None of these models can
+`unbound-v1-model.bin` uses the same codec without a selector. SignTools accepts
+it only after complete upstream SINF authentication and lossless selector binding,
+then revalidates identical key recovery and performs normal upstream decryption.
+None of these models can
 decrypt a real App Store application.

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 
@@ -12,14 +13,26 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-func storeJSON(c echo.Context, body any) error {
+func storeJSON(c echo.Context, body any) error { return storeJSONLimit(c, body, 5<<20) }
+func storeJSONLimit(c echo.Context, body any, limit int64) error {
 	c.Response().Header().Set("Cache-Control", "no-store")
-	c.Request().Body = http.MaxBytesReader(c.Response(), c.Request().Body, 5<<20)
+	if c.Request().ContentLength > limit {
+		return echo.NewHTTPError(http.StatusRequestEntityTooLarge, "App Store request exceeds its size limit")
+	}
+	c.Request().Body = http.MaxBytesReader(c.Response(), c.Request().Body, limit)
 	decoder := json.NewDecoder(c.Request().Body)
 	if err := decoder.Decode(body); err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			return echo.NewHTTPError(http.StatusRequestEntityTooLarge, "App Store request exceeds its size limit")
+		}
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid App Store JSON request")
 	}
 	if err := decoder.Decode(new(any)); err != io.EOF {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			return echo.NewHTTPError(http.StatusRequestEntityTooLarge, "App Store request exceeds its size limit")
+		}
 		return echo.NewHTTPError(http.StatusBadRequest, "App Store request must contain one JSON object")
 	}
 	return nil
@@ -50,7 +63,7 @@ func registerStoreRoutes(e *echo.Echo, auth echo.MiddlewareFunc) {
 		}
 		return c.JSON(http.StatusOK, response)
 	}, managementOrigin)
-	for _, operation := range []string{"search", "purchases", "purchase", "versions", "version-metadata"} {
+	for _, operation := range []string{"search", "purchases", "purchase", "versions", "version-metadata", "version-metadata-batch"} {
 		g.POST("/"+operation, func(c echo.Context) error {
 			var request store.Request
 			if err := storeJSON(c, &request); err != nil {
@@ -63,6 +76,30 @@ func registerStoreRoutes(e *echo.Echo, auth echo.MiddlewareFunc) {
 			return c.JSON(http.StatusOK, response)
 		}, managementOrigin)
 	}
+	g.POST("/repair", func(c echo.Context) error {
+		var request store.RepairRequest
+		if err := storeJSONLimit(c, &request, 40<<20); err != nil {
+			return err
+		}
+		if err := store.ValidateClientID(request.ClientID); err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		}
+		if err := store.ValidateRepairSessions(request.Sessions); err != nil {
+			status := http.StatusBadRequest
+			if errors.Is(err, store.ErrRepairSessionsTooLarge) {
+				status = http.StatusRequestEntityTooLarge
+			}
+			return echo.NewHTTPError(status, err.Error())
+		}
+		task := tasks.Default.Start(request.ClientID, "ipatool-license-repair", "App Store license repair", func(ctx context.Context, reporter *tasks.Reporter) (any, error) {
+			result, err := store.RepairFromSessions(ctx, request, store.Progress{Update: func(fraction float64) { reporter.Progress(fraction * 100) }, Log: reporter.Log})
+			if err != nil {
+				return nil, tasks.PublicError(err.Error())
+			}
+			return result, nil
+		})
+		return c.JSON(http.StatusAccepted, task)
+	}, managementOrigin)
 	g.POST("/download", func(c echo.Context) error {
 		var request store.Request
 		if err := storeJSON(c, &request); err != nil {

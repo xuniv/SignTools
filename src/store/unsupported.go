@@ -22,3 +22,7 @@ func (*Service) Execute(context.Context, string, Request) (Response, error) {
 func (*Service) Download(context.Context, Request, Progress) (DownloadResult, error) {
 	return DownloadResult{}, ErrUnavailable
 }
+
+func (*Service) Repair(context.Context, RepairRequest, Progress) (DownloadResult, error) {
+	return DownloadResult{}, ErrUnavailable
+}

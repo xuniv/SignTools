@@ -1,3 +1,16 @@
+import { Toaster, toast as notify } from "sonner";
+import { Skeleton } from "./components/ui/skeleton";
+import { ToggleGroup, ToggleGroupItem } from "./components/ui/toggle-group";
+import { Empty as UIEmpty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyContent } from "./components/ui/empty";
+import {
+  Field as UIField,
+  FieldLabel,
+  FieldDescription,
+  FieldGroup,
+  FieldSet,
+  FieldLegend,
+} from "./components/ui/field";
+import { ConfirmHost, confirmAction } from "./confirm";
 import React, { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Workbench } from "./workbench";
 import { Library } from "./library";
@@ -168,14 +181,13 @@ function Empty({
   action?: ReactNode;
 }) {
   return (
-    <div className="surface grid min-h-80 place-content-center justify-items-center gap-3 px-6 py-16 text-center">
-      <div className="mb-2 rounded-2xl border bg-background p-4 text-muted-foreground">
-        <Icon size={26} strokeWidth={1.4} />
-      </div>
-      <h3 className="text-base font-semibold tracking-tight">{title}</h3>
-      <p className="max-w-80 text-sm leading-relaxed text-muted-foreground">{description}</p>
-      {action && <div className="mt-2">{action}</div>}
-    </div>
+    <UIEmpty>
+      <EmptyHeader>
+        <EmptyTitle>{title}</EmptyTitle>
+        <EmptyDescription>{description}</EmptyDescription>
+      </EmptyHeader>
+      {action && <EmptyContent>{action}</EmptyContent>}
+    </UIEmpty>
   );
 }
 function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
@@ -189,11 +201,11 @@ function Field({ label, children, hint }: { label: string; children: ReactNode; 
     return child;
   });
   return (
-    <div className="field">
-      <label htmlFor={id}>{label}</label>
+    <UIField className="gap-2">
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
       {content}
-      {hint && <p className="text-xs leading-relaxed text-muted-foreground">{hint}</p>}
-    </div>
+      {hint && <FieldDescription>{hint}</FieldDescription>}
+    </UIField>
   );
 }
 function Select({ children, ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) {
@@ -232,7 +244,10 @@ function App() {
   const [pushOn, setPushOn] = useState(false),
     [pushBusy, setPushBusy] = useState(false),
     [installed, setInstalled] = useState(isInstalled);
-  const toast = useCallback((text: string, error = false) => setNotice({ text, error }), []);
+  const toast = useCallback((text: string, error = false) => {
+    if (error) notify.error(text);
+    else notify.success(text);
+  }, []);
   const updateState = useCallback((next: State) => {
     const clean = {
       ...next,
@@ -437,19 +452,16 @@ function App() {
   );
   return (
     <div className="min-h-dvh">
+      <ConfirmHost />
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-[224px] flex-col border-r bg-card p-4 md:flex">
-        <a href="/#apps" className="mb-10 mt-4 flex items-center gap-2.5 px-3 text-lg font-semibold tracking-[-.04em]">
-          <span className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-primary text-white">
-            <Layers3 size={19} />
-          </span>
+        <a href="/#apps" className="mb-8 mt-3 flex items-center px-3 text-xl font-medium tracking-[-.025em]">
           SignTools
         </a>
-        <p className="eyebrow mb-3 px-3">Manage</p>
         <nav className="grid gap-1">
           <Nav />
         </nav>
         <div className="mt-8 px-3">
-          <p className="eyebrow mb-4">Signing activity</p>
+          <p className="section-label mb-4">Signing activity</p>
           <div className="grid gap-3 text-xs text-muted-foreground">
             <span className="flex items-center gap-2.5">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
@@ -462,20 +474,10 @@ function App() {
           </div>
         </div>
         <div className="mt-auto space-y-4">
-          <div className="rounded-xl border bg-background p-3.5">
-            <Smartphone size={18} className="mb-2 text-primary" />
-            <p className="text-xs font-medium">Your library. Anywhere.</p>
-            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-              Add to Home Screen for the full app experience.
-            </p>
-          </div>
           <div className="flex items-center gap-2 border-t px-2 pt-4">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-primary">
-              <ShieldCheck size={16} />
-            </div>
             <div>
-              <p className="text-xs font-medium">Private workspace</p>
-              <p className="mt-0.5 text-[10px] text-muted-foreground">Self-hosted · Your control</p>
+              <p className="text-xs font-medium">SignTools</p>
+              <p className="mt-0.5 text-[10px] text-muted-foreground">Self-hosted</p>
             </div>
             <button
               className="ml-auto p-1 text-muted-foreground"
@@ -489,7 +491,7 @@ function App() {
         </div>
       </aside>
       <main className="app-main md:ml-[224px]">
-        <header className="flex h-16 items-center justify-between border-b bg-card px-5 pt-[env(safe-area-inset-top)] sm:px-8">
+        <header className="app-header flex items-center justify-between border-b bg-card px-5 pt-[env(safe-area-inset-top)] sm:px-8">
           <div className="flex items-center gap-2 text-xs">
             <span className="font-semibold md:hidden">SignTools</span>
             <span className="hidden text-muted-foreground md:inline">Workspace</span>
@@ -520,15 +522,11 @@ function App() {
                 {pushBusy ? <Spinner /> : pushOn ? <Bell size={17} /> : <BellOff size={17} />}
               </button>
             )}
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 text-[10px] font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-              ST
-            </span>
           </div>
         </header>
-        <div className="mx-auto max-w-[1500px] px-5 py-8 sm:px-8 sm:py-10 lg:px-12">
+        <div className="mx-auto max-w-[1400px] px-4 py-7 sm:px-8 sm:py-9 lg:px-10">
           <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="eyebrow mb-2.5">Workspace</p>
               <h1 className="page-title">
                 {
                   {
@@ -546,14 +544,14 @@ function App() {
               <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
                 {
                   {
-                    apps: "Apps, original versions, and signed variants in one place.",
+                    apps: "Browse original apps, versions, and signed builds.",
                     install: "Keep IPA files and host installation pages without signing.",
                     store: "Search, purchase, and download app versions using your Apple accounts.",
                     decrypt: "Decrypt an IPA with a matching model from your browser vault.",
                     sources: "Browse repositories and bring apps into your library.",
-                    tweaks: "Keep your tweaks ready to inject when signing.",
-                    settings: "Make signing effortless on every device.",
-                    backup: "Move your encrypted accounts, models, and preferences between browsers.",
+                    tweaks: "Tweak files available when signing.",
+                    settings: "Builders, signing profiles, and device preferences.",
+                    backup: "Export or restore accounts, models, and device preferences.",
                   }[page]
                 }
               </p>
@@ -582,51 +580,40 @@ function App() {
           </div>
           {page === "apps" && (
             <>
-              <div className="mb-7 grid grid-cols-3 gap-3 sm:gap-4">
+              <dl className="mb-6 flex flex-wrap gap-x-8 gap-y-3 border-b pb-5 text-sm">
                 {[
-                  {
-                    label: "Apps in library",
-                    value: totalGroups,
-                    icon: Layers3,
-                    detail: `${signingApps.length} total builds`,
-                  },
-                  { label: "Ready to install", value: ready, icon: CheckCircle2, detail: "Signed and waiting" },
-                  { label: "In progress", value: signing, icon: Activity, detail: "Signing across builders" },
-                ].map(({ label, value, icon: Icon, detail }) => (
-                  <div key={label} className="surface px-3 py-4 sm:px-5">
-                    <div className="mb-3 flex items-center justify-between gap-2">
-                      <span className="text-[10px] font-medium text-muted-foreground sm:text-xs">{label}</span>
-                      <Icon size={15} strokeWidth={1.5} className="hidden text-muted-foreground sm:block" />
-                    </div>
-                    <span className="text-2xl font-semibold tracking-[-.05em] sm:text-[30px]">
-                      {loading ? "—" : value}
-                    </span>
-                    <p className="mt-1.5 hidden text-[10px] text-muted-foreground sm:block">{detail}</p>
+                  ["Apps", totalGroups],
+                  ["Builds", signingApps.length],
+                  ["Ready", ready],
+                  ["Signing", signing],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex items-baseline gap-2">
+                    <dt className="text-muted-foreground">{label}</dt>
+                    <dd className="font-medium tabular-nums">{loading ? "—" : value}</dd>
                   </div>
                 ))}
-              </div>
+              </dl>
               <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex max-w-full gap-0.5 overflow-auto rounded-lg border bg-card p-1">
+                <ToggleGroup
+                  type="single"
+                  value={filter}
+                  onValueChange={(value) => {
+                    if (value) setFilter(value);
+                  }}
+                  aria-label="App status filter"
+                  size="sm"
+                >
                   {[
                     { id: "all", name: "All apps" },
                     { id: "ready", name: "Ready" },
                     { id: "signing", name: "In progress" },
                     { id: "failed", name: "Failed" },
                   ].map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => setFilter(item.id)}
-                      className={cn(
-                        "whitespace-nowrap rounded-md px-3 py-1.5 text-[11px] transition-colors",
-                        filter === item.id
-                          ? "bg-secondary font-semibold text-foreground"
-                          : "text-muted-foreground hover:text-foreground",
-                      )}
-                    >
+                    <ToggleGroupItem key={item.id} value={item.id}>
                       {item.name}
-                    </button>
+                    </ToggleGroupItem>
                   ))}
-                </div>
+                </ToggleGroup>
                 <div className="relative w-full sm:w-64">
                   <Search size={14} className="absolute left-3 top-3 text-muted-foreground" />
                   <Input
@@ -641,11 +628,11 @@ function App() {
               {loading ? (
                 <div className="grid gap-4 lg:grid-cols-2">
                   {[0, 1, 2, 3].map((item) => (
-                    <div key={item} className="surface h-52 animate-pulse bg-secondary/50" />
+                    <Skeleton key={item} className="h-52" />
                   ))}
                 </div>
               ) : groups.length ? (
-                <div className="grid items-start gap-4 xl:grid-cols-2">
+                <div className="grid items-start gap-4 2xl:grid-cols-2">
                   {groups.map((group) => (
                     <AppCard
                       key={group.id}
@@ -662,7 +649,7 @@ function App() {
                 </div>
               ) : (
                 <Empty
-                  title={signingApps.length ? "No matching apps" : "A fresh start for your apps"}
+                  title={signingApps.length ? "No matching apps" : "No signed apps"}
                   description={
                     state.Apps.length
                       ? "Try another name, bundle identifier, version, or status."
@@ -676,10 +663,6 @@ function App() {
                   }
                 />
               )}
-              <p className="mt-6 flex items-center justify-center gap-1.5 text-[10px] text-muted-foreground">
-                <Layers3 size={12} />
-                Grouped by app identity · Versions newest first
-              </p>
             </>
           )}
           {page === "install" && (
@@ -769,8 +752,9 @@ function App() {
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               className="text-destructive"
-                              onSelect={() => {
-                                if (confirm(`Delete ${tweak.Name}?`)) void onAction(tweak.DeleteUrl, "Tweak deleted.");
+                              onSelect={async () => {
+                                if (await confirmAction(`Delete ${tweak.Name}?`))
+                                  void onAction(tweak.DeleteUrl, "Tweak deleted.");
                               }}
                             >
                               Delete
@@ -784,7 +768,7 @@ function App() {
               ) : (
                 <Empty
                   icon={Puzzle}
-                  title="A little extra for your apps"
+                  title="No saved tweaks"
                   description="Upload your tweak files once, then choose them from the library each time you sign."
                   action={
                     <Button variant="outline" onClick={() => setModal({ type: "tweak" })}>
@@ -797,7 +781,7 @@ function App() {
             </>
           )}
           {page === "settings" && (
-            <div className="grid items-start gap-6 lg:grid-cols-2">
+            <div className="grid items-start gap-7 lg:grid-cols-2">
               <section className="surface p-5">
                 <div className="mb-3 flex items-center gap-2">
                   <KeyRound size={17} className="text-primary" />
@@ -812,13 +796,13 @@ function App() {
                   <ArrowRight size={13} className="ml-2" />
                 </Button>
               </section>
-              <section className="surface p-6">
+              <section className="border-b pb-6">
                 <div className="mb-5 flex items-center gap-2">
                   <Sparkles size={17} className="text-primary" />
                   <h2 className="font-semibold">Signing preferences</h2>
                 </div>
                 <p className="mb-5 text-xs leading-relaxed text-muted-foreground">
-                  Your choices are saved on this device and selected for your next signing job.
+                  Defaults for signing on this device.
                 </p>
                 <div className="grid gap-5">
                   <Field label="Preferred builder">
@@ -850,7 +834,7 @@ function App() {
                   </Field>
                 </div>
               </section>
-              <section className="surface p-6">
+              <section className="border-b pb-6">
                 <div className="mb-5 flex items-center gap-2">
                   <Smartphone size={17} className="text-primary" />
                   <h2 className="font-semibold">App experience</h2>
@@ -891,7 +875,7 @@ function App() {
                   </Button>
                 </div>
               </section>
-              <section className="surface p-6">
+              <section className="border-b pb-6">
                 <div className="mb-5 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Server size={17} className="text-primary" />
@@ -920,8 +904,8 @@ function App() {
                         <button
                           className="subtle-button"
                           aria-label={`Remove builder ${item.Name}`}
-                          onClick={() => {
-                            if (confirm(`Remove builder ${item.Name}?`))
+                          onClick={async () => {
+                            if (await confirmAction(`Remove builder ${item.Name}?`))
                               void request(`/api/builders/${encodeURIComponent(item.Id)}`, { method: "DELETE" })
                                 .then(() => onSaved("Builder removed."))
                                 .catch((error) => toast(errorText(error), true));
@@ -937,7 +921,7 @@ function App() {
                   Tokens and keys stay on the server. Saved builders are available to this workspace.
                 </p>
               </section>
-              <section className="surface p-6">
+              <section className="border-b pb-6">
                 <div className="mb-5 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <KeyRound size={17} className="text-primary" />
@@ -968,8 +952,8 @@ function App() {
                         <button
                           className="subtle-button"
                           aria-label={`Remove profile ${item.Name}`}
-                          onClick={() => {
-                            if (confirm(`Delete signing profile ${item.Name}?`))
+                          onClick={async () => {
+                            if (await confirmAction(`Delete signing profile ${item.Name}?`))
                               void request(`/api/profiles/${encodeURIComponent(item.Id)}`, { method: "DELETE" })
                                 .then(() => onSaved("Profile removed."))
                                 .catch((error) => toast(errorText(error), true));
@@ -990,7 +974,7 @@ function App() {
                 </p>
               </section>
               {hiddenRepos.length > 0 && (
-                <section className="surface p-6">
+                <section className="border-b pb-6">
                   <h2 className="mb-2 font-semibold">Hidden server sources</h2>
                   <p className="mb-4 text-xs text-muted-foreground">
                     {hiddenRepos.length} default source(s) hidden on this device.
@@ -1009,7 +993,7 @@ function App() {
                 </section>
               )}
               {settings.loginPage && (
-                <section className="surface p-6">
+                <section className="border-b pb-6">
                   <h2 className="mb-2 font-semibold">Workspace session</h2>
                   <p className="mb-4 text-xs text-muted-foreground">You are signed in to this private workspace.</p>
                   <Button
@@ -1124,27 +1108,6 @@ function App() {
           )}
         </DialogContent>
       </Dialog>
-      {notice && (
-        <div
-          role={notice.error ? "alert" : "status"}
-          className={cn(
-            "fixed bottom-24 left-4 right-4 z-[100] mx-auto flex max-w-lg items-start gap-3 rounded-xl border bg-card px-4 py-3 shadow-xl md:bottom-6 md:left-auto md:right-6",
-            notice.error ? "border-red-300" : "border-emerald-200",
-          )}
-        >
-          <span className={cn("mt-0.5 shrink-0", notice.error ? "text-red-500" : "text-primary")}>
-            {notice.error ? <XCircle size={17} /> : <CheckCircle2 size={17} />}
-          </span>
-          <p className="min-w-0 flex-1 break-words text-xs leading-relaxed">{notice.text}</p>
-          <button
-            onClick={() => setNotice(null)}
-            aria-label="Dismiss notification"
-            className="shrink-0 text-muted-foreground"
-          >
-            <X size={14} />
-          </button>
-        </div>
-      )}
     </div>
   );
 }
@@ -1167,14 +1130,14 @@ function AppCard({
   if (!group.versions.length) return null;
   const versionRows = expanded ? group.versions : group.versions.slice(0, 1);
   return (
-    <article className="surface enter overflow-hidden">
+    <article className="surface overflow-hidden">
       <div className="flex items-center gap-3.5 px-5 py-4">
         <AppIcon name={group.name} src={group.icon} />
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-[15px] font-semibold tracking-tight" title={group.name}>
+          <h2 className="break-words text-[15px] font-medium" title={group.name}>
             {group.name}
           </h2>
-          <p className="mt-1 truncate font-mono text-[10px] text-muted-foreground" title={group.bundleId}>
+          <p className="mt-1 break-all font-mono text-xs text-muted-foreground" title={group.bundleId}>
             {group.bundleId || "Original app identity pending"}
           </p>
           <p className="mt-2 text-[10px] text-muted-foreground">
@@ -1191,11 +1154,7 @@ function AppCard({
           <div key={version}>
             <div className="flex items-center gap-2 bg-background px-5 py-2.5">
               <span className="text-xs font-semibold">{version ? `v${version}` : "Unknown version"}</span>
-              {index === 0 && (
-                <span className="rounded bg-primary/8 px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-wide text-primary">
-                  Latest
-                </span>
-              )}
+              {index === 0 && <span className="text-xs text-muted-foreground">Latest</span>}
               <span className="ml-auto text-[10px] text-muted-foreground">
                 {variants.length} variant{variants.length === 1 ? "" : "s"} · {builds.length} builds
               </span>
@@ -1215,10 +1174,10 @@ function AppCard({
                   <div className="divide-y divide-border/60">
                     {variant.builds.map((app) => (
                       <div className="px-5 py-3" key={app.Id}>
-                        <div className="flex items-start justify-between gap-2">
+                        <div className="build-row">
                           <div className="min-w-0">
                             <p
-                              className="truncate text-xs font-medium"
+                              className="break-words text-sm font-medium"
                               title={app.SignedDisplayName || app.DisplayName || app.Name}
                             >
                               {app.SignedDisplayName || app.DisplayName || app.Name}
@@ -1233,7 +1192,7 @@ function AppCard({
                               {app.TweakCount ? ` · ${app.TweakCount} tweaks` : ""}
                             </p>
                           </div>
-                          <div className="flex shrink-0 items-center gap-1">
+                          <div className="flex flex-wrap items-center gap-2">
                             <Status value={app.Status} />
                             {app.Status === 1 && !app.IsMac && (
                               <Button size="sm" className="ml-1 h-7 px-2.5 text-[10px]" onClick={() => onInstall(app)}>
@@ -1313,9 +1272,9 @@ function AppCard({
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
                                   className="text-destructive"
-                                  onSelect={() => {
+                                  onSelect={async () => {
                                     if (
-                                      confirm(
+                                      await confirmAction(
                                         `Delete ${app.Name} ${app.Version}? This removes this build and its files.`,
                                       )
                                     )
@@ -1469,7 +1428,7 @@ function Sources({
     return (
       <Empty
         icon={Globe2}
-        title="A world of apps, one library"
+        title="No sources"
         description="Add an AltStore-compatible HTTPS source to browse apps, choose versions, and sign them in a few taps."
         action={
           <Button variant="outline" onClick={add}>
@@ -1568,7 +1527,7 @@ function Sources({
           </Button>
         </div>
       ) : apps.length ? (
-        <div className="grid items-start gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+        <div className="divide-y border-y">
           {apps.map((app, index) => (
             <RepoCard key={`${app.bundleIdentifier}-${index}`} app={app} onSign={onSign} />
           ))}
@@ -1590,20 +1549,26 @@ function RepoCard({
   const [selected, setSelected] = useState(versions[0]?.version || "");
   const version = versions.find((item) => item.version === selected) || versions[0];
   return (
-    <div className="surface flex h-full flex-col p-5">
-      <div className="mb-4 flex items-center gap-3">
-        <AppIcon name={app.name} src={app.iconURL} />
-        <div className="min-w-0">
-          <h3 className="truncate text-sm font-semibold">{app.name}</h3>
-          <p className="mt-1 truncate text-[10px] text-muted-foreground">
-            {app.developerName || app.bundleIdentifier}
-          </p>
+    <article className="source-app-row">
+      <div className="flex min-w-0 items-start gap-3">
+        <AppIcon name={app.name} src={app.iconURL} small />
+        <div className="min-w-0 flex-1">
+          <h3 className="break-words text-sm font-medium">{app.name}</h3>
+          <p className="mt-1 break-words text-xs text-muted-foreground">{app.developerName || app.bundleIdentifier}</p>
+          {app.localizedDescription && (
+            <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+              {app.localizedDescription}
+            </p>
+          )}
+          {version?.date && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Updated {relativeTime(version.date)}
+              {version.size ? ` · ${(version.size / 1048576).toFixed(1)} MB` : ""}
+            </p>
+          )}
         </div>
       </div>
-      <p className="mb-5 line-clamp-3 text-xs leading-relaxed text-muted-foreground">
-        {app.localizedDescription || "Available from this source."}
-      </p>
-      <div className="mt-auto flex items-center gap-2">
+      <div className="flex items-center gap-2">
         <Select
           aria-label={`Version of ${app.name}`}
           value={selected}
@@ -1616,25 +1581,13 @@ function RepoCard({
             </option>
           ))}
         </Select>
-        <Button
-          size="sm"
-          className="h-10 shrink-0 px-3 text-xs"
-          disabled={!version?.downloadURL}
-          onClick={() => version && onSign(app, version)}
-        >
+        <Button size="sm" disabled={!version?.downloadURL} onClick={() => version && onSign(app, version)}>
           Sign app
-          <ArrowRight size={13} className="ml-2" />
         </Button>
       </div>
-      {version?.date && (
-        <p className="mt-3 text-[9px] text-muted-foreground">
-          Updated {relativeTime(version.date)} {version.size ? `· ${(version.size / 1048576).toFixed(1)} MB` : ""}
-        </p>
-      )}
-    </div>
+    </article>
   );
 }
-
 async function uploadFiles(files: File[], progress: (value: number) => void, instance: (uploader: Uppy) => void) {
   if (!files.length) return [];
   const uploader = new Uppy({
@@ -1832,331 +1785,333 @@ function SignForm({
         </DialogDescription>
       </DialogHeader>
       <form id="sign-form" onSubmit={(event) => void submit(event)} className="grid gap-3">
-        <fieldset
-          disabled={busy}
-          className="dialog-scroll grid gap-4"
-          style={{ maxHeight: "calc(100dvh - 240px - env(safe-area-inset-top) - env(safe-area-inset-bottom))" }}
-        >
-          <section className="rounded-lg border bg-card p-3">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="eyebrow">IPA source</h3>
-              <div className="flex gap-1 rounded-md bg-secondary p-0.5">
-                {(installOnly ? ["file", "library"] : ["file", "url", "library"]).map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    className={cn(
-                      "rounded px-2.5 py-1 text-[10px]",
-                      mode === item ? "bg-card font-semibold shadow-sm" : "text-muted-foreground",
-                    )}
-                    onClick={() => {
-                      setMode(item);
-                      setSourceImport(item === "url" && !!source?.url && url === source.url);
-                      const nextMetadata =
-                        item === "library"
-                          ? artifacts.find((artifact) => artifact.id === libraryId)
-                          : item === "url" && url === source?.url
-                            ? source.metadata
-                            : undefined;
-                      setMetadata(nextMetadata || {});
-                      setOutput((current) => prefillOutput(current, nextMetadata || {}));
-                      setPreview("");
-                    }}
-                  >
-                    {item === "file" ? "Upload" : item === "url" ? "URL" : "Library"}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {mode === "existing" ? (
-              <div className="flex items-center gap-3">
-                <FileArchive size={22} className="text-primary" />
-                <p className="min-w-0 flex-1 truncate text-xs font-medium">{source?.name}</p>
-                <Button type="button" size="sm" variant="outline" onClick={() => setMode("file")}>
-                  Choose another
-                </Button>
-              </div>
-            ) : mode === "file" ? (
-              <Input
-                type="file"
-                accept=".ipa,.zip"
-                aria-label="Choose IPA file"
-                required
-                onChange={(event) => setFiles(Array.from(event.target.files || []))}
-              />
-            ) : mode === "url" ? (
-              <Input
-                type="url"
-                required
-                aria-label="App download URL"
-                placeholder="https://example.com/app.ipa"
-                value={url}
-                onChange={(event) => {
-                  setUrl(event.target.value);
-                  setSourceImport(false);
-                }}
-              />
-            ) : (
-              <Select
-                required
-                aria-label="Library IPA"
-                value={libraryId}
-                onChange={(event) => selectArtifact(event.target.value)}
-              >
-                <option value="">Choose an IPA from your library</option>
-                {source?.libraryId && !artifacts.some((item) => item.id === source.libraryId) && (
-                  <option value={source.libraryId}>{source.name}</option>
-                )}
-                {artifacts.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.displayName || item.name} · {item.version || "?"} ({item.buildVersion || "?"}) ·{" "}
-                    {item.encryption}
-                  </option>
-                ))}
-              </Select>
-            )}
-            {preview && <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">{preview}</p>}
-            <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-md bg-background px-3 py-2.5 text-[10px]">
-              <span className="text-muted-foreground">Original bundle ID</span>
-              <span className="break-all font-mono">{metadata.bundleId || "Read after upload"}</span>
-              <span className="text-muted-foreground">Original display name</span>
-              <span className="break-words">{metadata.displayName || "Read after upload"}</span>
-              <span className="text-muted-foreground">Version · build</span>
-              <span>
-                {metadata.version || "—"} · {metadata.buildVersion || "—"}
-              </span>
-              {metadata.encryption && (
-                <>
-                  <span className="text-muted-foreground">DRM state</span>
-                  <span>{metadata.encryption}</span>
-                </>
-              )}
-            </div>
-            {metadata.encryption === "encrypted" && !installOnly && (
-              <p className="mt-2 text-[10px] leading-relaxed text-amber-700 dark:text-amber-300">
-                This IPA has encrypted executables. Signing preserves App Store DRM. Use Decrypt with a matching model
-                to produce a decrypted copy first.
-              </p>
-            )}
-          </section>
-          {!installOnly && (
-            <>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Builder">
-                  <Select
-                    name="builder_id"
-                    aria-label="Signing builder"
-                    value={builder}
-                    onChange={(event) => setBuilder(event.target.value)}
-                    required
-                  >
-                    <option value="" disabled>
-                      Select a builder
-                    </option>
-                    {builders.map((item) => (
-                      <option key={item.Id} value={item.Id}>
-                        {item.Name}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-                <Field label="Signing profile">
-                  <Select
-                    name="profile_id"
-                    aria-label="Signing profile"
-                    value={profile}
-                    onChange={(event) => setProfile(event.target.value)}
-                    required
-                  >
-                    <option value="" disabled>
-                      Select a profile
-                    </option>
-                    {profiles.map((item) => (
-                      <option key={item.Id} value={item.Id}>
-                        {item.Name}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-              </div>
-              {!profiles.length && (
-                <p className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
-                  Add a signing profile in Settings before signing.
-                </p>
-              )}
-              <section className="rounded-lg border bg-card p-3">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="eyebrow">Signed output</h3>
-                  <button
-                    type="button"
-                    className="text-[10px] text-primary"
-                    onClick={() => {
-                      setIdType("id_original");
-                      setOutput(
-                        prefillOutput(
-                          { bundleId: "", displayName: "", bundleIdEdited: false, displayNameEdited: false },
-                          metadata,
-                        ),
-                      );
-                    }}
-                  >
-                    Reset to original metadata
-                  </button>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Output bundle identifier">
-                    <Input
-                      aria-label="Output bundle identifier"
-                      value={output.bundleId}
-                      disabled={idType === "id_prov"}
-                      required={idType === "id_custom"}
-                      placeholder={idType === "id_prov" ? "From provisioning profile" : "Keep original identifier"}
-                      pattern={idType === "id_custom" ? "[A-Za-z0-9][A-Za-z0-9.\\-]*" : undefined}
-                      onChange={(event) => {
-                        setOutput((current) => ({ ...current, bundleId: event.target.value, bundleIdEdited: true }));
-                        setIdType(event.target.value === metadata.bundleId ? "id_original" : "id_custom");
-                      }}
-                    />
-                  </Field>
-                  <Field label="Output display name">
-                    <Input
-                      aria-label="Output display name"
-                      value={output.displayName}
-                      placeholder="Keep original display name"
-                      onChange={(event) =>
-                        setOutput((current) => ({
-                          ...current,
-                          displayName: event.target.value,
-                          displayNameEdited: true,
-                        }))
-                      }
-                    />
-                  </Field>
-                  <Field label="Identifier strategy">
-                    <Select
-                      aria-label="Bundle identifier mode"
-                      value={idType}
-                      onChange={(event) => {
-                        setIdType(event.target.value);
-                        if (event.target.value === "id_original")
-                          setOutput((current) => ({
-                            ...current,
-                            bundleId: metadata.bundleId || "",
-                            bundleIdEdited: false,
-                          }));
+        <FieldGroup className="contents">
+          <FieldSet
+            disabled={busy}
+            className="dialog-scroll grid gap-4"
+            style={{ maxHeight: "calc(100dvh - 240px - env(safe-area-inset-top) - env(safe-area-inset-bottom))" }}
+          >
+            <section className="border-t pt-3">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <h3 className="section-label">IPA source</h3>
+                <div className="flex gap-1 rounded-md bg-secondary p-0.5">
+                  {(installOnly ? ["file", "library"] : ["file", "url", "library"]).map((item) => (
+                    <button
+                      key={item}
+                      type="button"
+                      className={cn(
+                        "rounded px-2.5 py-1 text-[10px]",
+                        mode === item ? "bg-card font-semibold shadow-sm" : "text-muted-foreground",
+                      )}
+                      onClick={() => {
+                        setMode(item);
+                        setSourceImport(item === "url" && !!source?.url && url === source.url);
+                        const nextMetadata =
+                          item === "library"
+                            ? artifacts.find((artifact) => artifact.id === libraryId)
+                            : item === "url" && url === source?.url
+                              ? source.metadata
+                              : undefined;
+                        setMetadata(nextMetadata || {});
+                        setOutput((current) => prefillOutput(current, nextMetadata || {}));
+                        setPreview("");
                       }}
                     >
-                      <option value="id_original">Keep original identifier</option>
-                      <option value="id_prov" disabled={account}>
-                        Use provisioning profile ID
+                      {item === "file" ? "Upload" : item === "url" ? "URL" : "Library"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {mode === "existing" ? (
+                <div className="flex items-center gap-3">
+                  <FileArchive size={22} className="text-primary" />
+                  <p className="min-w-0 flex-1 truncate text-xs font-medium">{source?.name}</p>
+                  <Button type="button" size="sm" variant="outline" onClick={() => setMode("file")}>
+                    Choose another
+                  </Button>
+                </div>
+              ) : mode === "file" ? (
+                <Input
+                  type="file"
+                  accept=".ipa,.zip"
+                  aria-label="Choose IPA file"
+                  required
+                  onChange={(event) => setFiles(Array.from(event.target.files || []))}
+                />
+              ) : mode === "url" ? (
+                <Input
+                  type="url"
+                  required
+                  aria-label="App download URL"
+                  placeholder="https://example.com/app.ipa"
+                  value={url}
+                  onChange={(event) => {
+                    setUrl(event.target.value);
+                    setSourceImport(false);
+                  }}
+                />
+              ) : (
+                <Select
+                  required
+                  aria-label="Library IPA"
+                  value={libraryId}
+                  onChange={(event) => selectArtifact(event.target.value)}
+                >
+                  <option value="">Choose an IPA from your library</option>
+                  {source?.libraryId && !artifacts.some((item) => item.id === source.libraryId) && (
+                    <option value={source.libraryId}>{source.name}</option>
+                  )}
+                  {artifacts.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.displayName || item.name} · {item.version || "?"} ({item.buildVersion || "?"}) ·{" "}
+                      {item.encryption}
+                    </option>
+                  ))}
+                </Select>
+              )}
+              {preview && <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">{preview}</p>}
+              <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                <span className="text-muted-foreground">Original bundle ID</span>
+                <span className="break-all font-mono">{metadata.bundleId || "Read after upload"}</span>
+                <span className="text-muted-foreground">Original display name</span>
+                <span className="break-words">{metadata.displayName || "Read after upload"}</span>
+                <span className="text-muted-foreground">Version · build</span>
+                <span>
+                  {metadata.version || "—"} · {metadata.buildVersion || "—"}
+                </span>
+                {metadata.encryption && (
+                  <>
+                    <span className="text-muted-foreground">DRM state</span>
+                    <span>{metadata.encryption}</span>
+                  </>
+                )}
+              </div>
+              {metadata.encryption === "encrypted" && !installOnly && (
+                <p className="mt-2 text-[10px] leading-relaxed text-amber-700 dark:text-amber-300">
+                  This IPA has encrypted executables. Signing preserves App Store DRM. Use Decrypt with a matching
+                  model to produce a decrypted copy first.
+                </p>
+              )}
+            </section>
+            {!installOnly && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Builder">
+                    <Select
+                      name="builder_id"
+                      aria-label="Signing builder"
+                      value={builder}
+                      onChange={(event) => setBuilder(event.target.value)}
+                      required
+                    >
+                      <option value="" disabled>
+                        Select a builder
                       </option>
-                      <option value="id_custom">Use edited bundle identifier</option>
+                      {builders.map((item) => (
+                        <option key={item.Id} value={item.Id}>
+                          {item.Name}
+                        </option>
+                      ))}
                     </Select>
                   </Field>
-                  <div className="self-end rounded-md bg-background p-2 text-[10px] leading-relaxed text-muted-foreground">
-                    Version {metadata.version || "—"} · build {metadata.buildVersion || "—"}
-                    <br />
-                    The signer preserves the original version metadata.
-                  </div>
+                  <Field label="Signing profile">
+                    <Select
+                      name="profile_id"
+                      aria-label="Signing profile"
+                      value={profile}
+                      onChange={(event) => setProfile(event.target.value)}
+                      required
+                    >
+                      <option value="" disabled>
+                        Select a profile
+                      </option>
+                      {profiles.map((item) => (
+                        <option key={item.Id} value={item.Id}>
+                          {item.Name}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
                 </div>
-              </section>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <section className="rounded-lg border bg-card p-3">
-                  <h3 className="eyebrow mb-3">Identifier options</h3>
-                  <div className="grid gap-2.5">
-                    <CheckField
-                      key={`encode-${profile}`}
-                      name="id_encode"
-                      label="Encode original IDs to unique IDs"
-                      checked={account}
-                      disabled={!account}
-                    />
-                    <CheckField name="id_patch" label="Patch IDs in app binaries" checked />
-                    <CheckField
-                      name="id_force_original"
-                      label="Force original bundle ID"
-                      description="Distribution certificate; may affect entitlements."
-                    />
-                  </div>
-                </section>
-                <section className="rounded-lg border bg-card p-3">
-                  <h3 className="eyebrow mb-3">App options</h3>
-                  <div className="grid grid-cols-2 gap-x-2 gap-y-2.5">
-                    <CheckField name="app_debug" label="Enable debugging" />
-                    <CheckField name="all_devices" label="All devices" checked />
-                    <CheckField name="mac" label="Mac patches" />
-                    <CheckField name="file_share" label="File sharing" />
-                  </div>
-                </section>
-              </div>
-              <section className="rounded-lg border bg-card p-3">
-                <div className="mb-2 flex items-center justify-between">
-                  <h3 className="eyebrow">Inject tweaks</h3>
-                  <Select
-                    aria-label="Tweak source"
-                    value={tweakMode}
-                    onChange={(event) => setTweakMode(event.target.value)}
-                    className="select h-8 w-32 text-xs"
-                  >
-                    <option value="library">From library</option>
-                    <option value="upload">Upload files</option>
-                  </Select>
-                </div>
-                {tweakMode === "library" ? (
-                  <div className="grid max-h-32 gap-2 overflow-auto sm:grid-cols-2">
-                    {state.Tweaks.length ? (
-                      state.Tweaks.map((tweak) => (
-                        <label key={tweak.Id} className="flex items-center gap-2 text-xs">
-                          <input type="checkbox" name="saved_tweak_ids" value={tweak.Id} />
-                          <span className="truncate">{tweak.Name}</span>
-                        </label>
-                      ))
-                    ) : (
-                      <p className="text-[10px] text-muted-foreground">
-                        No saved tweaks. Add files in the Tweaks tab.
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <Input
-                    type="file"
-                    multiple
-                    aria-label="Choose tweak files"
-                    onChange={(event) => setTweaks(Array.from(event.target.files || []))}
-                  />
+                {!profiles.length && (
+                  <p className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
+                    Add a signing profile in Settings before signing.
+                  </p>
                 )}
-              </section>
-            </>
+                <section className="border-t pt-3">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="section-label">Signed output</h3>
+                    <button
+                      type="button"
+                      className="text-[10px] text-primary"
+                      onClick={() => {
+                        setIdType("id_original");
+                        setOutput(
+                          prefillOutput(
+                            { bundleId: "", displayName: "", bundleIdEdited: false, displayNameEdited: false },
+                            metadata,
+                          ),
+                        );
+                      }}
+                    >
+                      Reset to original metadata
+                    </button>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label="Output bundle identifier">
+                      <Input
+                        aria-label="Output bundle identifier"
+                        value={output.bundleId}
+                        disabled={idType === "id_prov"}
+                        required={idType === "id_custom"}
+                        placeholder={idType === "id_prov" ? "From provisioning profile" : "Keep original identifier"}
+                        pattern={idType === "id_custom" ? "[A-Za-z0-9][A-Za-z0-9.\\-]*" : undefined}
+                        onChange={(event) => {
+                          setOutput((current) => ({ ...current, bundleId: event.target.value, bundleIdEdited: true }));
+                          setIdType(event.target.value === metadata.bundleId ? "id_original" : "id_custom");
+                        }}
+                      />
+                    </Field>
+                    <Field label="Output display name">
+                      <Input
+                        aria-label="Output display name"
+                        value={output.displayName}
+                        placeholder="Keep original display name"
+                        onChange={(event) =>
+                          setOutput((current) => ({
+                            ...current,
+                            displayName: event.target.value,
+                            displayNameEdited: true,
+                          }))
+                        }
+                      />
+                    </Field>
+                    <Field label="Identifier strategy">
+                      <Select
+                        aria-label="Bundle identifier mode"
+                        value={idType}
+                        onChange={(event) => {
+                          setIdType(event.target.value);
+                          if (event.target.value === "id_original")
+                            setOutput((current) => ({
+                              ...current,
+                              bundleId: metadata.bundleId || "",
+                              bundleIdEdited: false,
+                            }));
+                        }}
+                      >
+                        <option value="id_original">Keep original identifier</option>
+                        <option value="id_prov" disabled={account}>
+                          Use provisioning profile ID
+                        </option>
+                        <option value="id_custom">Use edited bundle identifier</option>
+                      </Select>
+                    </Field>
+                    <div className="self-end rounded-md bg-background p-2 text-[10px] leading-relaxed text-muted-foreground">
+                      Version {metadata.version || "—"} · build {metadata.buildVersion || "—"}
+                      <br />
+                      The signer preserves the original version metadata.
+                    </div>
+                  </div>
+                </section>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <section className="border-t pt-3">
+                    <h3 className="section-label mb-3">Identifier options</h3>
+                    <div className="grid gap-2.5">
+                      <CheckField
+                        key={`encode-${profile}`}
+                        name="id_encode"
+                        label="Encode original IDs to unique IDs"
+                        checked={account}
+                        disabled={!account}
+                      />
+                      <CheckField name="id_patch" label="Patch IDs in app binaries" checked />
+                      <CheckField
+                        name="id_force_original"
+                        label="Force original bundle ID"
+                        description="Distribution certificate; may affect entitlements."
+                      />
+                    </div>
+                  </section>
+                  <section className="border-t pt-3">
+                    <h3 className="section-label mb-3">App options</h3>
+                    <div className="grid grid-cols-2 gap-x-2 gap-y-2.5">
+                      <CheckField name="app_debug" label="Enable debugging" />
+                      <CheckField name="all_devices" label="All devices" checked />
+                      <CheckField name="mac" label="Mac patches" />
+                      <CheckField name="file_share" label="File sharing" />
+                    </div>
+                  </section>
+                </div>
+                <section className="border-t pt-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <h3 className="section-label">Inject tweaks</h3>
+                    <Select
+                      aria-label="Tweak source"
+                      value={tweakMode}
+                      onChange={(event) => setTweakMode(event.target.value)}
+                      className="select h-8 w-32 text-xs"
+                    >
+                      <option value="library">From library</option>
+                      <option value="upload">Upload files</option>
+                    </Select>
+                  </div>
+                  {tweakMode === "library" ? (
+                    <div className="grid max-h-32 gap-2 overflow-auto sm:grid-cols-2">
+                      {state.Tweaks.length ? (
+                        state.Tweaks.map((tweak) => (
+                          <label key={tweak.Id} className="flex items-center gap-2 text-xs">
+                            <input type="checkbox" name="saved_tweak_ids" value={tweak.Id} />
+                            <span className="truncate">{tweak.Name}</span>
+                          </label>
+                        ))
+                      ) : (
+                        <p className="text-[10px] text-muted-foreground">
+                          No saved tweaks. Add files in the Tweaks tab.
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <Input
+                      type="file"
+                      multiple
+                      aria-label="Choose tweak files"
+                      onChange={(event) => setTweaks(Array.from(event.target.files || []))}
+                    />
+                  )}
+                </section>
+              </>
+            )}
+            {installOnly && (
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                The IPA is preserved as uploaded. Its provisioning, signature, and App Store DRM requirements must
+                already allow installation on this device.
+              </p>
+            )}
+          </FieldSet>
+          {busy && (
+            <div>
+              <div className="mb-2 flex justify-between text-[10px] text-muted-foreground">
+                <span>
+                  {progress < 100 ? "Uploading files…" : installOnly ? "Importing IPA…" : "Starting signing job…"}
+                </span>
+                <span>{progress}%</span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
+                <div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }} />
+              </div>
+            </div>
           )}
-          {installOnly && (
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              The IPA is preserved as uploaded. Its provisioning, signature, and App Store DRM requirements must
-              already allow installation on this device.
+          <div className="flex items-center justify-between gap-3 border-t pt-3">
+            <p className="text-[10px] text-muted-foreground">
+              {installOnly ? "No builder or profile required" : "All signing options are shown above"}
             </p>
-          )}
-        </fieldset>
-        {busy && (
-          <div>
-            <div className="mb-2 flex justify-between text-[10px] text-muted-foreground">
-              <span>
-                {progress < 100 ? "Uploading files…" : installOnly ? "Importing IPA…" : "Starting signing job…"}
-              </span>
-              <span>{progress}%</span>
-            </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
-              <div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }} />
-            </div>
+            <Button type="submit" disabled={busy || (!installOnly && (!builder || !profile))} className="gap-2">
+              {busy ? <Spinner /> : installOnly ? <Upload size={15} /> : <ShieldCheck size={15} />}{" "}
+              {installOnly ? "Upload & host" : "Start signing"}
+            </Button>
           </div>
-        )}
-        <div className="flex items-center justify-between gap-3 border-t pt-3">
-          <p className="text-[10px] text-muted-foreground">
-            {installOnly ? "No builder or profile required" : "All signing options are shown above"}
-          </p>
-          <Button type="submit" disabled={busy || (!installOnly && (!builder || !profile))} className="gap-2">
-            {busy ? <Spinner /> : installOnly ? <Upload size={15} /> : <ShieldCheck size={15} />}{" "}
-            {installOnly ? "Upload & host" : "Start signing"}
-          </Button>
-        </div>
+        </FieldGroup>
       </form>
     </>
   );
@@ -2190,20 +2145,22 @@ function TweakForm({ onSuccess, onError }: { onSuccess: () => Promise<void>; onE
         <DialogDescription>Upload once. Reuse them with any app you sign.</DialogDescription>
       </DialogHeader>
       <form className="grid gap-5" onSubmit={(event) => void submit(event)}>
-        <Field label="Tweak files">
-          <Input
-            aria-label="Choose tweak files"
-            type="file"
-            multiple
-            required
-            disabled={busy}
-            onChange={(event) => setFiles(Array.from(event.target.files || []))}
-          />
-        </Field>
-        {busy && <p className="text-xs text-muted-foreground">Uploading… {progress}%</p>}
-        <Button type="submit" disabled={busy} className="ml-auto gap-2">
-          {busy ? <Spinner /> : <Upload size={15} />}Add to library
-        </Button>
+        <FieldGroup className="contents">
+          <Field label="Tweak files">
+            <Input
+              aria-label="Choose tweak files"
+              type="file"
+              multiple
+              required
+              disabled={busy}
+              onChange={(event) => setFiles(Array.from(event.target.files || []))}
+            />
+          </Field>
+          {busy && <p className="text-xs text-muted-foreground">Uploading… {progress}%</p>}
+          <Button type="submit" disabled={busy} className="ml-auto gap-2">
+            {busy ? <Spinner /> : <Upload size={15} />}Add to library
+          </Button>
+        </FieldGroup>
       </form>
     </>
   );
@@ -2231,54 +2188,56 @@ function ProfileForm({ onSuccess, onError }: { onSuccess: () => Promise<void>; o
         <DialogDescription>Certificate material is stored only on your server.</DialogDescription>
       </DialogHeader>
       <form onSubmit={(event) => void submit(event)} className="grid gap-5">
-        <fieldset disabled={busy} className="dialog-scroll grid gap-4">
-          <Field label="Profile name">
-            <Input name="name" required placeholder="My signing profile" autoComplete="off" />
-          </Field>
-          <Field label="Signing method">
-            <Select aria-label="Signing method" value={mode} onChange={(event) => setMode(event.target.value)}>
-              <option value="provisioning">Certificate + provisioning profile</option>
-              <option value="account">Certificate + Apple account</option>
-            </Select>
-          </Field>
-          <Field label="Signing certificate (.p12)">
-            <Input aria-label="Signing certificate" type="file" name="cert" accept=".p12,.pfx" required />
-          </Field>
-          <Field label="Certificate password">
-            <Input
-              type="password"
-              name="cert_pass"
-              autoComplete="new-password"
-              placeholder="Leave empty if not password protected"
-            />
-          </Field>
-          {mode === "provisioning" ? (
-            <Field label="Provisioning profile (.mobileprovision)">
+        <FieldGroup className="contents">
+          <FieldSet disabled={busy} className="dialog-scroll grid gap-4">
+            <Field label="Profile name">
+              <Input name="name" required placeholder="My signing profile" autoComplete="off" />
+            </Field>
+            <Field label="Signing method">
+              <Select aria-label="Signing method" value={mode} onChange={(event) => setMode(event.target.value)}>
+                <option value="provisioning">Certificate + provisioning profile</option>
+                <option value="account">Certificate + Apple account</option>
+              </Select>
+            </Field>
+            <Field label="Signing certificate (.p12)">
+              <Input aria-label="Signing certificate" type="file" name="cert" accept=".p12,.pfx" required />
+            </Field>
+            <Field label="Certificate password">
               <Input
-                aria-label="Provisioning profile file"
-                type="file"
-                name="prov"
-                accept=".mobileprovision,.provisionprofile"
-                required
+                type="password"
+                name="cert_pass"
+                autoComplete="new-password"
+                placeholder="Leave empty if not password protected"
               />
             </Field>
-          ) : (
-            <>
-              <Field label="Apple account">
-                <Input name="account_name" type="email" required autoComplete="off" placeholder="name@example.com" />
+            {mode === "provisioning" ? (
+              <Field label="Provisioning profile (.mobileprovision)">
+                <Input
+                  aria-label="Provisioning profile file"
+                  type="file"
+                  name="prov"
+                  accept=".mobileprovision,.provisionprofile"
+                  required
+                />
               </Field>
-              <Field label="Apple account password">
-                <Input name="account_pass" type="password" required autoComplete="new-password" />
-              </Field>
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                Apple may ask for a verification code while signing. Submit it from the app’s build actions.
-              </p>
-            </>
-          )}
-        </fieldset>
-        <Button type="submit" disabled={busy} className="ml-auto gap-2">
-          {busy ? <Spinner /> : <KeyRound size={14} />}Save profile
-        </Button>
+            ) : (
+              <>
+                <Field label="Apple account">
+                  <Input name="account_name" type="email" required autoComplete="off" placeholder="name@example.com" />
+                </Field>
+                <Field label="Apple account password">
+                  <Input name="account_pass" type="password" required autoComplete="new-password" />
+                </Field>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Apple may ask for a verification code while signing. Submit it from the app’s build actions.
+                </p>
+              </>
+            )}
+          </FieldSet>
+          <Button type="submit" disabled={busy} className="ml-auto gap-2">
+            {busy ? <Spinner /> : <KeyRound size={14} />}Save profile
+          </Button>
+        </FieldGroup>
       </form>
     </>
   );
@@ -2332,74 +2291,76 @@ function BuilderForm({ onSuccess, onError }: { onSuccess: () => Promise<void>; o
         <DialogDescription>Connect another signing service to your workspace.</DialogDescription>
       </DialogHeader>
       <form onSubmit={(event) => void submit(event)} className="grid gap-5">
-        <fieldset disabled={busy} className="dialog-scroll grid gap-4">
-          <Field label="Builder type">
-            <Select aria-label="Builder type" value={type} onChange={(event) => setType(event.target.value)}>
-              <option value="github">GitHub Actions</option>
-              <option value="selfhosted">Self-hosted</option>
-              <option value="semaphore">Semaphore</option>
-            </Select>
-          </Field>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Display name">
-              <Input name="name" required placeholder="My builder" autoComplete="off" />
+        <FieldGroup className="contents">
+          <FieldSet disabled={busy} className="dialog-scroll grid gap-4">
+            <Field label="Builder type">
+              <Select aria-label="Builder type" value={type} onChange={(event) => setType(event.target.value)}>
+                <option value="github">GitHub Actions</option>
+                <option value="selfhosted">Self-hosted</option>
+                <option value="semaphore">Semaphore</option>
+              </Select>
             </Field>
-            <Field label="Unique ID">
-              <Input name="id" required pattern="[A-Za-z0-9_-]+" placeholder="my-builder" autoComplete="off" />
-            </Field>
-          </div>
-          {type === "selfhosted" ? (
-            <>
-              <Field label="Builder URL">
-                <Input name="url" required type="url" placeholder="http://192.168.1.10:8090" />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Display name">
+                <Input name="name" required placeholder="My builder" autoComplete="off" />
               </Field>
-              <Field label="Builder key">
-                <Input name="key" required type="password" autoComplete="new-password" />
+              <Field label="Unique ID">
+                <Input name="id" required pattern="[A-Za-z0-9_-]+" placeholder="my-builder" autoComplete="off" />
               </Field>
-            </>
-          ) : (
-            <>
-              <Field label={type === "github" ? "Repository owner" : "Organization name"}>
-                <Input name="org_name" required autoComplete="off" />
-              </Field>
-              <Field label={type === "github" ? "Repository name" : "Project name"}>
-                <Input
-                  name={type === "github" ? "repo_name" : "project_name"}
-                  required
-                  defaultValue={type === "github" ? "SignTools-CI" : ""}
-                  autoComplete="off"
-                />
-              </Field>
-              {type === "github" ? (
-                <Field label="Workflow file">
-                  <Input name="workflow_file_name" required defaultValue="sign.yml" />
+            </div>
+            {type === "selfhosted" ? (
+              <>
+                <Field label="Builder URL">
+                  <Input name="url" required type="url" placeholder="http://192.168.1.10:8090" />
                 </Field>
-              ) : (
-                <Field label="Secret name">
-                  <Input name="secret_name" required defaultValue="ios-signer" />
+                <Field label="Builder key">
+                  <Input name="key" required type="password" autoComplete="new-password" />
                 </Field>
-              )}
-              <Field label="Branch / ref">
-                <Input
-                  key={type}
-                  name="ref"
-                  required
-                  defaultValue={type === "github" ? "master" : "refs/heads/master"}
-                />
-              </Field>
-              <Field label={type === "github" ? "GitHub token" : "Semaphore token"}>
-                <Input name="token" required type="password" autoComplete="new-password" />
-              </Field>
-            </>
-          )}
-          <p className="rounded-lg bg-secondary/60 p-3 text-[10px] leading-relaxed text-muted-foreground">
-            Credentials are sent directly to the server and are never returned to the browser. The server will
-            configure the builder’s signing service secrets.
-          </p>
-        </fieldset>
-        <Button type="submit" disabled={busy} className="ml-auto gap-2">
-          {busy ? <Spinner /> : <Server size={14} />}Connect builder
-        </Button>
+              </>
+            ) : (
+              <>
+                <Field label={type === "github" ? "Repository owner" : "Organization name"}>
+                  <Input name="org_name" required autoComplete="off" />
+                </Field>
+                <Field label={type === "github" ? "Repository name" : "Project name"}>
+                  <Input
+                    name={type === "github" ? "repo_name" : "project_name"}
+                    required
+                    defaultValue={type === "github" ? "SignTools-CI" : ""}
+                    autoComplete="off"
+                  />
+                </Field>
+                {type === "github" ? (
+                  <Field label="Workflow file">
+                    <Input name="workflow_file_name" required defaultValue="sign.yml" />
+                  </Field>
+                ) : (
+                  <Field label="Secret name">
+                    <Input name="secret_name" required defaultValue="ios-signer" />
+                  </Field>
+                )}
+                <Field label="Branch / ref">
+                  <Input
+                    key={type}
+                    name="ref"
+                    required
+                    defaultValue={type === "github" ? "master" : "refs/heads/master"}
+                  />
+                </Field>
+                <Field label={type === "github" ? "GitHub token" : "Semaphore token"}>
+                  <Input name="token" required type="password" autoComplete="new-password" />
+                </Field>
+              </>
+            )}
+            <p className="rounded-lg bg-secondary/60 p-3 text-[10px] leading-relaxed text-muted-foreground">
+              Credentials are sent directly to the server and are never returned to the browser. The server will
+              configure the builder’s signing service secrets.
+            </p>
+          </FieldSet>
+          <Button type="submit" disabled={busy} className="ml-auto gap-2">
+            {busy ? <Spinner /> : <Server size={14} />}Connect builder
+          </Button>
+        </FieldGroup>
       </form>
     </>
   );
@@ -2434,26 +2395,28 @@ function SourceForm({
         <DialogDescription>Browse apps from an AltStore-compatible repository.</DialogDescription>
       </DialogHeader>
       <form onSubmit={(event) => void submit(event)} className="grid gap-5">
-        <Field label="Repository URL" hint="Use a public HTTPS URL that points to a source JSON file.">
-          <Input
-            aria-label="Repository URL"
-            name="url"
-            required
-            type="url"
-            pattern="https://.*"
-            placeholder="https://example.com/source.json"
-            disabled={busy}
-          />
-        </Field>
-        <Field label="Display name (optional)">
-          <Input name="name" placeholder="Uses the source’s name" disabled={busy} />
-        </Field>
-        <p className="text-[10px] leading-relaxed text-muted-foreground">
-          This source list is saved on this device. Server defaults are available on every device.
-        </p>
-        <Button type="submit" disabled={busy} className="ml-auto gap-2">
-          {busy ? <Spinner /> : <Globe2 size={14} />}Add source
-        </Button>
+        <FieldGroup className="contents">
+          <Field label="Repository URL" hint="Use a public HTTPS URL that points to a source JSON file.">
+            <Input
+              aria-label="Repository URL"
+              name="url"
+              required
+              type="url"
+              pattern="https://.*"
+              placeholder="https://example.com/source.json"
+              disabled={busy}
+            />
+          </Field>
+          <Field label="Display name (optional)">
+            <Input name="name" placeholder="Uses the source’s name" disabled={busy} />
+          </Field>
+          <p className="text-[10px] leading-relaxed text-muted-foreground">
+            This source list is saved on this device. Server defaults are available on every device.
+          </p>
+          <Button type="submit" disabled={busy} className="ml-auto gap-2">
+            {busy ? <Spinner /> : <Globe2 size={14} />}Add source
+          </Button>
+        </FieldGroup>
       </form>
     </>
   );

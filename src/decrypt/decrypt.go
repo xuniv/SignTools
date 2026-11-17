@@ -5,8 +5,6 @@ package decrypt
 import (
 	"archive/zip"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -82,7 +80,7 @@ func inspectModelFile(name, privateDir string) (ModelInfo, error) {
 	if err != nil {
 		return ModelInfo{}, safeError(err, privateDir)
 	}
-	info := ModelInfo{Selector: diagnostic.SelectorID, FormatVersion: diagnostic.Version, Supported: diagnostic.Selector != nil}
+	info := ModelInfo{Selector: diagnostic.SelectorID, FormatVersion: diagnostic.Version, Supported: true}
 	info.Name = fmt.Sprintf("FairPlay model v%d", diagnostic.Version)
 	if info.Selector != "" {
 		info.Name += " (" + info.Selector + ")"
@@ -92,7 +90,11 @@ func inspectModelFile(name, privateDir string) (ModelInfo, error) {
 
 type Model struct {
 	ID   string
+	Name string
 	Data []byte
+	// Problem records a bounded transport/authentication failure, allowing
+	// automatic selection to skip this entry without discarding other models.
+	Problem string
 }
 
 type Options struct {
@@ -129,12 +131,15 @@ type Report struct {
 }
 
 type Result struct {
-	OutputPath string   `json:"-"`
-	Report     Report   `json:"report"`
-	ModelID    string   `json:"modelId"`
-	ModelIDs   []string `json:"modelIds,omitempty"`
-	directory  string
-	once       sync.Once
+	OutputPath     string         `json:"-"`
+	Report         Report         `json:"report"`
+	ModelID        string         `json:"modelId"`
+	ModelIDs       []string       `json:"modelIds,omitempty"`
+	ModelsTried    []ModelAttempt `json:"modelsTried"`
+	SelectedModels []ModelAttempt `json:"selectedModels"`
+	LicenseCopies  []LicenseCopy  `json:"licenseCopies,omitempty"`
+	directory      string
+	once           sync.Once
 }
 
 // Close removes all staged input, output, reports and enrollment models.
@@ -156,9 +161,10 @@ func (r contextReader) Read(p []byte) (int, error) {
 	return r.reader.Read(p)
 }
 
-// Run never selects models by approximate geometry or retries decryption.
-// The upstream registry authenticates each exact-selector match and rejects
-// missing/ambiguous matches. Upstream DecryptIPA is synchronous: cancellation
+// Run authenticates bounded model/SINF candidates with upstream's complete
+// validation, without approximate geometry matching or decryption retries.
+// Invalid and duplicate models are skipped in automatic mode. Ambiguous
+// authenticated candidates fail in upstream's registry. DecryptIPA is synchronous: cancellation
 // is checked between stages and after it returns, before output can be used.
 func Run(ctx context.Context, options Options, progress func(string, float64)) (_ *Result, err error) {
 	if !Info().PlatformSupported {
@@ -192,49 +198,9 @@ func Run(ctx context.Context, options Options, progress func(string, float64)) (
 		}
 	}
 	update("Validating enrollment models", 0.05)
-	registry := filepath.Join(dir, "models")
-	if err := os.Mkdir(registry, 0o700); err != nil {
-		return nil, errors.New("could not create private model registry")
-	}
-	ids, hashes := map[string]bool{}, map[string]string{}
-	selected := options.ModelID == ""
-	count := 0
-	for index, model := range options.Models {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		if model.ID == "" || len(model.ID) > 128 || strings.IndexFunc(model.ID, func(r rune) bool { return r < 32 || r == 127 }) >= 0 || ids[model.ID] {
-			return nil, errors.New("each enrollment model needs a unique ID of at most 128 characters")
-		}
-		ids[model.ID] = true
-		if len(model.Data) == 0 || len(model.Data) > MaxModelBytes {
-			return nil, errors.New("enrollment model exceeds the supported size limit")
-		}
-		if options.ModelID != "" && model.ID != options.ModelID {
-			continue
-		}
-		selected = true
-		name := filepath.Join(registry, fmt.Sprintf("%03d.bin", index))
-		if err := os.WriteFile(name, model.Data, 0o600); err != nil {
-			return nil, errors.New("could not stage enrollment model")
-		}
-		info, err := inspectModelFile(name, dir)
-		if err != nil {
-			return nil, err
-		}
-		if !info.Supported {
-			return nil, errors.New("model lacks an exact SINF selector; export a version 2 or version 3 enrollment model")
-		}
-		hash := sha256.Sum256(model.Data)
-		digest := hex.EncodeToString(hash[:])
-		if _, exists := hashes[digest]; exists {
-			return nil, errors.New("duplicate enrollment model contents; keep one copy of each model")
-		}
-		hashes[digest] = model.ID
-		count++
-	}
-	if !selected || count == 0 {
-		return nil, errors.New("selected enrollment model was not provided")
+	candidates, attempts, err := prepareModels(ctx, dir, options, update)
+	if err != nil {
+		return nil, err
 	}
 	update("Preparing private IPA snapshot", 0.15)
 	input := filepath.Join(dir, "input.ipa")
@@ -242,6 +208,18 @@ func Run(ctx context.Context, options Options, progress func(string, float64)) (
 		return nil, err
 	}
 	if err := preflight(ctx, input); err != nil {
+		return nil, err
+	}
+	checks := 0
+	input, copies, err := reconcileManifestLicenses(ctx, input, candidates, &checks)
+	if err != nil {
+		return nil, err
+	}
+	if len(copies) > 0 {
+		update(fmt.Sprintf("Restored %d declared SINF source(s) from authenticated existing replicas", len(copies)), 0.2)
+	}
+	registry, hashes, err := authenticatedRegistry(ctx, dir, input, candidates, attempts, &checks, update)
+	if err != nil {
 		return nil, err
 	}
 	if err := ctx.Err(); err != nil {
@@ -254,6 +232,10 @@ func Run(ctx context.Context, options Options, progress func(string, float64)) (
 	output, reportPath := filepath.Join(dir, "output.ipa"), filepath.Join(dir, "report.json")
 	upstream, err := fairplay.DecryptIPA(fairplay.DecryptOptions{InputPath: input, OutputPath: output, ReportPath: reportPath, ModelPath: registry, StripAccountData: options.StripAccountData})
 	if err != nil {
+		message := err.Error()
+		if strings.Contains(message, "has no declared or adjacent SINF") || strings.Contains(message, "missing inventoried SINF") {
+			return nil, &MissingLicenseError{Reason: safeError(err, dir).Error()}
+		}
 		return nil, safeError(err, dir)
 	}
 	if err := ctx.Err(); err != nil {
@@ -270,7 +252,18 @@ func Run(ctx context.Context, options Options, progress func(string, float64)) (
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	result := &Result{OutputPath: output, Report: report, ModelIDs: modelIDs, directory: dir}
+	selectedIDs := map[string]bool{}
+	for _, id := range modelIDs {
+		selectedIDs[id] = true
+	}
+	var selectedModels []ModelAttempt
+	for index := range attempts {
+		if selectedIDs[attempts[index].ID] && attempts[index].Status == "authenticated" {
+			attempts[index].Status = "selected"
+			selectedModels = append(selectedModels, attempts[index])
+		}
+	}
+	result := &Result{OutputPath: output, Report: report, ModelIDs: modelIDs, ModelsTried: attempts, SelectedModels: selectedModels, LicenseCopies: copies, directory: dir}
 	if len(modelIDs) == 1 {
 		result.ModelID = modelIDs[0]
 	}

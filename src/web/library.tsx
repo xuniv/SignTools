@@ -1,3 +1,5 @@
+import { Empty as UIEmpty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyContent } from "./components/ui/empty";
+import { confirmAction } from "./confirm";
 import { useEffect, useState } from "react";
 import {
   ArrowDownToLine,
@@ -60,7 +62,7 @@ export function Library({
       .includes(query.toLowerCase()),
   );
   async function remove(item: Artifact) {
-    if (!confirm(`Delete ${item.displayName || item.name} from the IPA library?`)) return;
+    if (!(await confirmAction(`Delete ${item.displayName || item.name} from the IPA library?`))) return;
     setBusy(item.id);
     try {
       await request(`/api/library/${encodeURIComponent(item.id)}`, { method: "DELETE" });
@@ -99,7 +101,7 @@ export function Library({
           </Button>
         </div>
       </div>
-      <div className="mb-5 rounded-lg border bg-card px-4 py-3 text-xs leading-relaxed text-muted-foreground">
+      <div className="mb-5 max-w-3xl text-xs leading-relaxed text-muted-foreground">
         Install only hosts the original IPA without signing or changing its entitlements. Encrypted App Store apps
         still require the purchasing account and matching Apple authorization. Use Decrypt with a matching model when
         available.
@@ -110,27 +112,27 @@ export function Library({
           Loading IPA library…
         </div>
       ) : !filtered.length ? (
-        <div className="surface grid justify-items-center gap-3 px-5 py-14 text-center">
-          <FileArchive size={30} className="text-muted-foreground" />
-          <h2 className="font-semibold">{items.length ? "No matching IPA files" : "Keep your original IPAs ready"}</h2>
-          <p className="max-w-md text-xs leading-relaxed text-muted-foreground">
-            Upload without signing, or download from Store. Every artifact keeps its source, version, and DRM state.
-          </p>
-          <Button variant="outline" onClick={onUpload}>
-            <Plus size={15} className="mr-2" />
-            Upload IPA
-          </Button>
-        </div>
+        <UIEmpty>
+          <EmptyHeader>
+            <EmptyTitle>{items.length ? "No matching IPA files" : "No IPA files"}</EmptyTitle>
+            <EmptyDescription>Upload an IPA or download one from Store.</EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button variant="outline" onClick={onUpload}>
+              Upload IPA
+            </Button>
+          </EmptyContent>
+        </UIEmpty>
       ) : (
-        <div className="grid gap-3 xl:grid-cols-2">
+        <div className="divide-y border-y">
           {filtered.map((item) => (
-            <article className="surface p-4" key={item.id}>
+            <article className="py-5" key={item.id}>
               <div className="flex items-start gap-3">
-                <div className="rounded-xl bg-secondary p-3 text-primary">
+                <div className="hidden text-muted-foreground sm:block">
                   <FileArchive size={20} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h2 className="truncate text-sm font-semibold">{item.displayName || item.name}</h2>
+                  <h2 className="break-words text-sm font-medium">{item.displayName || item.name}</h2>
                   <p className="mt-1 break-all font-mono text-[10px] text-muted-foreground">
                     {item.bundleId || "Unknown bundle identifier"}
                   </p>
@@ -180,7 +182,7 @@ export function Library({
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t pt-3">
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                 <span
                   className={cn(
                     "status",

@@ -50,8 +50,8 @@ func TestInspectModelUsesCompleteUpstreamValidation(t *testing.T) {
 		}
 	}
 	unbound, err := InspectModel(fixture(t, "unbound-v1-model.bin"))
-	if err != nil || unbound.Supported || unbound.Selector != "" || unbound.FormatVersion != 1 {
-		t.Fatalf("v1 must be inspectable but unsupported for selector selection: %+v %v", unbound, err)
+	if err != nil || !unbound.Supported || unbound.Selector != "" || unbound.FormatVersion != 1 {
+		t.Fatalf("v1 must remain supported through authenticated candidate selection: %+v %v", unbound, err)
 	}
 }
 
@@ -195,14 +195,13 @@ func TestModelSelectionFailsClosed(t *testing.T) {
 		name, selected, want string
 		models               []Model
 	}{
-		{"different account", "", "no model for selector", []Model{{ID: "other", Data: fixture(t, "other-account-model.bin")}}},
+		{"different account", "", "no model that decodes", []Model{{ID: "other", Data: fixture(t, "other-account-model.bin")}}},
 		{"wrong key exact selector", "", "no model that decodes", []Model{{ID: "wrong", Data: fixture(t, "wrong-key-model.bin")}}},
-		{"explicit mismatch", "other", "no model for selector", []Model{{ID: "matching", Data: matching}, {ID: "other", Data: fixture(t, "other-account-model.bin")}}},
+		{"explicit mismatch", "other", "no model that decodes", []Model{{ID: "matching", Data: matching}, {ID: "other", Data: fixture(t, "other-account-model.bin")}}},
 		{"missing selected model", "missing", "not provided", []Model{{ID: "matching", Data: matching}}},
-		{"unbound legacy", "", "lacks an exact SINF selector", []Model{{ID: "v1", Data: fixture(t, "unbound-v1-model.bin")}}},
 		{"ambiguous authenticated match", "", "multiple models", []Model{{ID: "first", Data: matching}, {ID: "second", Data: ambiguous}}},
-		{"duplicate bytes", "", "duplicate enrollment model", []Model{{ID: "first", Data: matching}, {ID: "second", Data: matching}}},
-		{"duplicate id", "", "unique ID", []Model{{ID: "first", Data: matching}, {ID: "first", Data: ambiguous}}},
+		{"manual invalid model", "bad", "invalid or unsupported", []Model{{ID: "bad", Data: []byte("invalid")}, {ID: "good", Data: matching}}},
+		{"manual duplicate id", "first", "duplicated", []Model{{ID: "first", Data: matching}, {ID: "first", Data: ambiguous}}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

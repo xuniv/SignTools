@@ -67,6 +67,7 @@ type fixtureStore struct {
 	client     apphttp.Client[wireResult]
 	base       string
 	outputPath *string
+	sinfs      *[]appstore.Sinf
 }
 
 func (f *fixtureStore) call(path string, input any) (wireResult, error) {
@@ -111,7 +112,7 @@ func (f *fixtureStore) Search(input appstore.SearchInput) (appstore.SearchOutput
 }
 func (f *fixtureStore) OwnedApps(input appstore.OwnedAppsInput) (appstore.OwnedAppsOutput, error) {
 	out, err := f.call("/purchases", input)
-	return appstore.OwnedAppsOutput{Count: len(out.Apps), TotalCount: 1, Page: input.Page, Results: out.Apps}, err
+	return appstore.OwnedAppsOutput{Count: len(out.Apps), TotalCount: len(out.Apps), Page: input.Page, Results: out.Apps}, err
 }
 func (f *fixtureStore) Lookup(input appstore.LookupInput) (appstore.LookupOutput, error) {
 	out, err := f.call("/lookup", input)
@@ -152,7 +153,11 @@ func (f *fixtureStore) Download(input appstore.DownloadInput) (appstore.Download
 	if err == nil {
 		err = closeErr
 	}
-	return appstore.DownloadOutput{DestinationPath: input.OutputPath}, err
+	return appstore.DownloadOutput{DestinationPath: input.OutputPath, Sinfs: append([]appstore.Sinf(nil), (*f.sinfs)...)}, err
+}
+
+func (f *fixtureStore) ReplicateSinf(input appstore.ReplicateSinfInput) error {
+	return appstore.NewAppStore(f.args).ReplicateSinf(input)
 }
 
 type mockApple struct {
@@ -162,6 +167,10 @@ type mockApple struct {
 	searchStorefront string
 	outputPath       string
 	accountEmails    []string
+	ipa              []byte
+	sinfs            []appstore.Sinf
+	ownedApps        []appstore.App
+	metadataErrors   map[string]string
 }
 
 func fixtureIPA(t *testing.T, version string) []byte {
@@ -185,6 +194,8 @@ func fixtureIPA(t *testing.T, version string) []byte {
 	binary.LittleEndian.PutUint32(macho[48:], 1)
 	f, _ = writer.Create("Payload/Synthetic.app/Synthetic")
 	_, _ = f.Write(macho)
+	f, _ = writer.Create("Payload/Synthetic.app/SC_Info/Synthetic.sinf")
+	_, _ = f.Write([]byte("embedded-synthetic-license"))
 	if err = writer.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -222,9 +233,16 @@ func fixtureService(t *testing.T) (*Service, *mockApple) {
 			if err != nil || cookie.Value != "synthetic-cookie-secret" {
 				t.Error("sealed session did not restore session cookie")
 			}
+		case "/purchases":
+			if mock.ownedApps != nil {
+				output.Apps = mock.ownedApps
+			}
 		case "/lookup":
 			var body appstore.LookupInput
 			_ = json.NewDecoder(r.Body).Decode(&body)
+			if body.AppID > 0 {
+				output.Apps[0].ID = body.AppID
+			}
 			if body.AppID == 99 {
 				output.Apps[0].Price = 4.99
 			}
@@ -234,13 +252,20 @@ func fixtureService(t *testing.T) (*Service, *mockApple) {
 		case "/metadata":
 			var body appstore.GetVersionMetadataInput
 			_ = json.NewDecoder(r.Body).Decode(&body)
-			if body.VersionID != "901" {
-				t.Error("version metadata request lost selected version")
+			if body.VersionID == "902" {
+				output.Version = "2.0"
+			}
+			if message := mock.metadataErrors[body.VersionID]; message != "" {
+				output.Error = message
 			}
 		case "/ipa":
 			version := r.URL.Query().Get("version")
 			mock.versions = append(mock.versions, version)
-			_, _ = w.Write(fixtureIPA(t, version))
+			if mock.ipa != nil {
+				_, _ = w.Write(mock.ipa)
+			} else {
+				_, _ = w.Write(fixtureIPA(t, version))
+			}
 			return
 		}
 		_ = json.NewEncoder(w).Encode(output)
@@ -248,7 +273,7 @@ func fixtureService(t *testing.T) (*Service, *mockApple) {
 	t.Cleanup(server.Close)
 	service := &Service{factory: func(args appstore.Args) appstore.AppStore {
 		executor := fixtureExecutor{client: &http.Client{Jar: args.CookieJar, Timeout: 5 * time.Second}}
-		return &fixtureStore{args: args, client: apphttp.NewClient[wireResult](apphttp.Args{CookieJar: args.CookieJar, Executor: executor}), base: server.URL, outputPath: &mock.outputPath}
+		return &fixtureStore{args: args, client: apphttp.NewClient[wireResult](apphttp.Args{CookieJar: args.CookieJar, Executor: executor}), base: server.URL, outputPath: &mock.outputPath, sinfs: &mock.sinfs}
 	}}
 	return service, mock
 }

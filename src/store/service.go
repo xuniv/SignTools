@@ -19,6 +19,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"SignTools/src/library"
@@ -52,9 +53,14 @@ type invocation struct {
 type Service struct {
 	factory        func(appstore.Args) appstore.AppStore
 	importArtifact func(io.Reader, string, string, string) (library.Artifact, error)
+	metadataMu     sync.Mutex
+	metadataCache  map[string]catalogMetadata
+	artworkLookup  func(context.Context, string, int64, appstore.Platform) (string, *float64, error)
 }
 
-func New() *Service { return &Service{factory: appstore.NewAppStore, importArtifact: library.Import} }
+func New() *Service {
+	return &Service{factory: appstore.NewAppStore, importArtifact: library.Import, artworkLookup: lookupPublicArtwork}
+}
 
 var Default API = New()
 
@@ -176,7 +182,7 @@ func appView(a appstore.App) App {
 	for i, p := range a.Platforms {
 		platforms[i] = string(p)
 	}
-	out := App{ID: strconv.FormatInt(a.ID, 10), BundleID: a.BundleID, Name: a.Name, Version: a.Version, Price: a.Price, Platforms: platforms}
+	out := App{ID: strconv.FormatInt(a.ID, 10), BundleID: a.BundleID, Name: a.Name, Version: a.Version, Price: a.Price, PriceKnown: true, Platforms: platforms}
 	if !a.PurchaseDate.IsZero() {
 		t := a.PurchaseDate
 		out.PurchaseDate = &t
@@ -353,11 +359,13 @@ func (s *Service) Execute(ctx context.Context, operation string, input Request) 
 		}
 		output, e := i.store.OwnedApps(appstore.OwnedAppsInput{Account: acc, Page: page, Limit: limit, Platform: platform})
 		err = e
-		response.Results = appsView(output.Results)
+		if err == nil {
+			response.Results = s.hydrateOwned(ctx, i, acc, platform, output.Results)
+		}
 		response.Count = output.Count
 		response.TotalCount = output.TotalCount
 		response.Page = output.Page
-	case "purchase", "versions", "version-metadata":
+	case "purchase", "versions", "version-metadata", "version-metadata-batch":
 		app, e := resolve(i, input, acc, platform, operation != "purchase")
 		if e != nil {
 			return Response{}, e
@@ -380,12 +388,40 @@ func (s *Service) Execute(ctx context.Context, operation string, input Request) 
 			err = e
 			response.LatestVersionID = output.LatestExternalVersionID
 			response.Versions = make([]VersionMetadata, len(output.ExternalVersionIdentifiers))
-			for n, id := range output.ExternalVersionIdentifiers {
+			for n := range output.ExternalVersionIdentifiers {
+				id := output.ExternalVersionIdentifiers[len(output.ExternalVersionIdentifiers)-1-n]
 				response.Versions[n] = VersionMetadata{ID: id, Latest: id == output.LatestExternalVersionID}
 				if id == output.LatestExternalVersionID {
 					response.Versions[n].Version = app.Version
 					response.Versions[n].Name = app.Name
 				}
+			}
+		case "version-metadata-batch":
+			if len(input.VersionIDs) == 0 || len(input.VersionIDs) > 20 {
+				return Response{}, errors.New("versionIds must contain 1–20 external version identifiers")
+			}
+			for _, id := range input.VersionIDs {
+				if e := checkVersion(id); e != nil {
+					return Response{}, e
+				}
+			}
+			response.Versions = make([]VersionMetadata, 0, len(input.VersionIDs))
+			for _, id := range input.VersionIDs {
+				if e := ctx.Err(); e != nil {
+					return Response{}, e
+				}
+				metadata := VersionMetadata{ID: id, Name: app.Name}
+				output, e := i.store.GetVersionMetadata(appstore.GetVersionMetadataInput{Context: ctx, Account: acc, App: app, VersionID: id, Platform: platform})
+				if e != nil {
+					metadata.Error = i.safeError(e, acc).Error()
+				} else {
+					metadata.Version = output.DisplayVersion
+					if !output.ReleaseDate.IsZero() {
+						date := output.ReleaseDate
+						metadata.Date = &date
+					}
+				}
+				response.Versions = append(response.Versions, metadata)
 			}
 		case "version-metadata":
 			if e := checkVersion(input.VersionID); e != nil {
@@ -471,7 +507,7 @@ func (s *Service) Download(ctx context.Context, input Request, progress Progress
 	close(stop)
 	<-done
 	if downloadErr != nil {
-		return DownloadResult{}, i.safeError(downloadErr, acc)
+		return DownloadResult{}, i.safeError(downloadErr, acc, dir)
 	}
 	if err = ctx.Err(); err != nil {
 		return DownloadResult{}, err
@@ -483,6 +519,13 @@ func (s *Service) Download(ctx context.Context, input Request, progress Progress
 	rel, err := filepath.Rel(dir, actual)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
 		return DownloadResult{}, errors.New("upstream download escaped its private directory")
+	}
+	progress.log("Personalizing and checking App Store licenses")
+	if err = replicateAndValidateLicenses(i.store, actual, output.Sinfs); err != nil {
+		return DownloadResult{}, i.safeError(err, acc, dir)
+	}
+	if err = ctx.Err(); err != nil {
+		return DownloadResult{}, err
 	}
 	file, err := os.Open(actual)
 	if err != nil {
@@ -510,7 +553,7 @@ func (s *Service) Download(ctx context.Context, input Request, progress Progress
 	if importArtifact == nil {
 		importArtifact = library.Import
 	}
-	artifact, err := importArtifact(file, name, "ipatool", "")
+	artifact, err := importArtifact(file, name, "ipatool", input.OriginalID)
 	if err != nil {
 		return DownloadResult{}, errors.New("download completed but the IPA could not be imported: " + i.safeError(err, acc).Error())
 	}

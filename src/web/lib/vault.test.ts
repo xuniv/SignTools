@@ -156,3 +156,27 @@ describe("browser account and model vault", () => {
     expect(destination.getItem("signtools.theme")).toBe("existing");
   });
 });
+test("original model filename and parsed type are encrypted separately and survive backup", async () => {
+  const store = new MemoryStorage();
+  const filename = "KR device enrollment original.filename.model";
+  await saveModel(
+    {
+      id: "identity",
+      name: filename,
+      originalFilename: filename,
+      typeName: "Parsed FairPlay model",
+      supported: false,
+      sealed: "sealed-body",
+    },
+    store,
+  );
+  expect((await loadModels(store))[0]).toMatchObject({
+    originalFilename: filename,
+    typeName: "Parsed FairPlay model",
+  });
+  expect([...store.values.values()].join("")).not.toContain(filename);
+  const backup = await createBackup("valid backup passphrase", store);
+  const restored = new MemoryStorage();
+  await restoreBackup(backup, "valid backup passphrase", restored);
+  expect((await loadModels(restored))[0]?.originalFilename).toBe(filename);
+});
