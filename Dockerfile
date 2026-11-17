@@ -8,16 +8,22 @@ COPY scripts scripts
 COPY src/web src/web
 RUN bun run build
 
-FROM golang:1.27.4-alpine@sha256:0a5f7fe796599ff487605987432e7619ae45beeb2fba4c2ce0b907879932aebf AS builder
+FROM --platform=$BUILDPLATFORM golang:1.27.4-alpine@sha256:0a5f7fe796599ff487605987432e7619ae45beeb2fba4c2ce0b907879932aebf AS builder
 
 WORKDIR /src
 COPY . .
 COPY --from=web /src/src/assets/js src/assets/js
 COPY --from=web /src/src/assets/vendor src/assets/vendor
 
-RUN apk add --no-cache git && \
-    go mod download && \
-    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -buildid=" -buildvcs=false -o "SignTools"
+RUN apk add --no-cache git && go mod download
+
+# Build native Go compiler processes for every target instead of emulating the
+# compiler under QEMU, which is particularly slow for older ARM builders.
+ARG TARGETOS
+ARG TARGETARCH
+ARG TARGETVARIANT
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH GOARM=${TARGETVARIANT#v} \
+    go build -trimpath -ldflags="-s -w -buildid=" -buildvcs=false -o "SignTools"
 
 FROM scratch
 
