@@ -461,6 +461,7 @@ export function Workbench({
     setBusy("models");
     setNotice(null);
     try {
+      if (!crypto.subtle) throw new Error("Encrypted enrollment models require HTTPS or localhost.");
       for (const file of Array.from(files)) {
         if (file.size > 64 * 1024) throw new Error("An enrollment model must be 64 KB or smaller.");
         const bytes = new Uint8Array(await file.arrayBuffer());
