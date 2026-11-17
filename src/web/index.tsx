@@ -601,6 +601,7 @@ function App() {
                     if (value) setFilter(value);
                   }}
                   aria-label="App status filter"
+                  className="max-w-full flex-wrap gap-1"
                   size="sm"
                 >
                   {[

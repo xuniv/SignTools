@@ -433,3 +433,45 @@ dd,
 .app-header {
   min-height: calc(64px + env(safe-area-inset-top));
 }
+
+/* Text-only enlargement reflows controls instead of shrinking labels or clipping glyphs. */
+.app-header {
+  flex-wrap: wrap;
+  align-content: center;
+  gap: 8px 12px;
+}
+.app-header > div {
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+.app-main input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+[role="dialog"] input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]) {
+  height: auto;
+  min-height: calc(1.5em + 0.5rem + 2px);
+}
+.app-main select,
+[role="dialog"] select {
+  height: auto;
+  min-height: calc(1.5em + 1rem + 2px);
+}
+.relative:has(> input) > svg.absolute {
+  top: 50%;
+  transform: translateY(-50%);
+}
+@media (max-width: 767px) {
+  .mobile-nav {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+  .mobile-nav .nav-link {
+    flex: 1 0 auto;
+    min-width: 44px;
+    white-space: nowrap;
+  }
+}
+
+/* The scrolling release list yields space; its primary action keeps its text height. */
+.version-dialog > button {
+  flex-shrink: 0;
+}
