@@ -1785,7 +1785,7 @@ function SignForm({
             : "Inspect the original app, choose output identifiers, and sign with all options visible."}
         </DialogDescription>
       </DialogHeader>
-      <form id="sign-form" onSubmit={(event) => void submit(event)} className="grid gap-3">
+      <form id="sign-form" onSubmit={(event) => void submit(event)} className="grid min-w-0 gap-3">
         <FieldGroup className="contents">
           <FieldSet
             disabled={busy}
@@ -1896,7 +1896,7 @@ function SignForm({
             </section>
             {!installOnly && (
               <>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="sign-pickers-grid grid grid-cols-2 gap-3">
                   <Field label="Builder">
                     <Select
                       name="builder_id"
@@ -2036,7 +2036,7 @@ function SignForm({
                   </section>
                   <section className="border-t pt-3">
                     <h3 className="section-label mb-3">App options</h3>
-                    <div className="grid grid-cols-2 gap-x-2 gap-y-2.5">
+                    <div className="sign-options-grid grid grid-cols-2 gap-x-2 gap-y-2.5">
                       <CheckField name="app_debug" label="Enable debugging" />
                       <CheckField name="all_devices" label="All devices" checked />
                       <CheckField name="mac" label="Mac patches" />
@@ -2045,7 +2045,7 @@ function SignForm({
                   </section>
                 </div>
                 <section className="border-t pt-3">
-                  <div className="mb-2 flex items-center justify-between">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                     <h3 className="section-label">Inject tweaks</h3>
                     <Select
                       aria-label="Tweak source"
@@ -2063,7 +2063,7 @@ function SignForm({
                         state.Tweaks.map((tweak) => (
                           <label key={tweak.Id} className="flex items-center gap-2 text-xs">
                             <input type="checkbox" name="saved_tweak_ids" value={tweak.Id} />
-                            <span className="truncate">{tweak.Name}</span>
+                            <span className="break-words">{tweak.Name}</span>
                           </label>
                         ))
                       ) : (

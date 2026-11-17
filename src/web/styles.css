@@ -16,7 +16,7 @@
   --color-muted-foreground: var(--muted);
   --color-accent: var(--secondary);
   --color-accent-foreground: var(--foreground);
-  --color-destructive: #e5484d;
+  --color-destructive: #b91c1c;
   --color-destructive-foreground: #ffffff;
   --color-border: var(--border);
   --color-input: var(--border);
@@ -136,6 +136,7 @@
     color: var(--primary);
   }
   .dialog-scroll {
+    min-width: 0;
     max-height: calc(100dvh - 12rem);
     overflow-y: auto;
     overscroll-behavior: contain;
@@ -474,4 +475,25 @@ dd,
 /* The scrolling release list yields space; its primary action keeps its text height. */
 .version-dialog > button {
   flex-shrink: 0;
+}
+
+/* Fieldset's native min-content track must yield to the signing dialog's width. */
+#sign-form .dialog-scroll {
+  grid-template-columns: minmax(0, 1fr);
+}
+#sign-form .dialog-scroll > *,
+#sign-form label,
+#sign-form label > span {
+  min-width: 0;
+}
+#sign-form label > span {
+  overflow-wrap: anywhere;
+}
+#sign-form .sign-pickers-grid,
+#sign-form .sign-options-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8em), 1fr));
+}
+#sign-form select[aria-label="Tweak source"] {
+  min-width: min(100%, 8em);
+  max-width: 100%;
 }
