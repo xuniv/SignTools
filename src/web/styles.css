@@ -9,14 +9,14 @@
   --color-popover: var(--card);
   --color-popover-foreground: var(--foreground);
   --color-primary: var(--primary);
-  --color-primary-foreground: #ffffff;
+  --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--foreground);
   --color-muted: var(--secondary);
   --color-muted-foreground: var(--muted);
   --color-accent: var(--secondary);
   --color-accent-foreground: var(--foreground);
-  --color-destructive: #e5484d;
+  --color-destructive: #b91c1c;
   --color-destructive-foreground: #ffffff;
   --color-border: var(--border);
   --color-input: var(--border);
@@ -27,22 +27,24 @@
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 :root {
-  --background: #fafbfa;
-  --foreground: #202722;
+  --background: #ffffff;
+  --foreground: rgb(0 0 0 / 92%);
   --card: #ffffff;
-  --secondary: #f0f3f0;
-  --muted: #788179;
-  --border: #e4e9e4;
-  --primary: #167b54;
+  --secondary: rgb(0 0 0 / 5%);
+  --muted: rgb(0 0 0 / 64%);
+  --border: rgb(0 0 0 / 12%);
+  --primary: #2d644b;
+  --primary-foreground: #ffffff;
 }
 .dark {
-  --background: #121714;
-  --foreground: #eaf0eb;
-  --card: #19201b;
-  --secondary: #242d26;
-  --muted: #96a59a;
-  --border: #303b33;
-  --primary: #25966b;
+  --background: #0a0a0a;
+  --foreground: rgb(255 255 255 / 94%);
+  --card: #101010;
+  --secondary: rgb(255 255 255 / 9%);
+  --muted: rgb(255 255 255 / 56%);
+  --border: rgb(255 255 255 / 12%);
+  --primary: #7ab092;
+  --primary-foreground: #0a0a0a;
   color-scheme: dark;
 }
 @layer base {
@@ -94,44 +96,47 @@
   .select {
     @apply flex h-10 w-full min-w-0 rounded-md border bg-card px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50;
   }
-  .eyebrow {
-    @apply text-[10px] font-semibold uppercase tracking-[.17em] text-muted-foreground;
+  .section-label {
+    @apply text-xs font-medium normal-case tracking-normal text-foreground;
   }
   .page-title {
-    @apply text-[30px] font-semibold leading-tight tracking-[-.045em] sm:text-[36px];
+    @apply text-[28px] font-medium leading-tight tracking-[-.025em] sm:text-[32px];
   }
   .surface {
-    @apply rounded-xl border bg-card;
+    @apply rounded-md border bg-card;
   }
   .subtle-button {
     @apply inline-flex items-center gap-2 rounded-md px-2.5 py-2 text-xs font-medium text-muted-foreground hover:bg-secondary hover:text-foreground;
   }
   .status {
-    @apply inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-medium;
+    @apply inline-flex shrink-0 items-center gap-1.5 rounded-sm px-1.5 py-0.5 text-xs font-medium;
   }
   .status::before {
     content: "";
     @apply h-1 w-1 rounded-full bg-current;
   }
   .status-ready {
-    @apply bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300;
+    @apply text-emerald-700 dark:text-emerald-300;
   }
   .status-working {
-    @apply bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300;
+    @apply text-amber-700 dark:text-amber-300;
   }
   .status-failed {
-    @apply bg-red-50 text-red-600 dark:bg-red-950/50 dark:text-red-300;
+    @apply text-red-600 dark:text-red-300;
   }
   .nav-link {
-    @apply flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground;
+    @apply flex items-center gap-3 rounded-sm px-3 py-2.5 text-[13px] text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground;
   }
   .nav-link[data-active="true"] {
-    @apply bg-emerald-50 font-semibold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300;
+    background: var(--secondary);
+    color: var(--foreground);
+    font-weight: 500;
   }
   .nav-link[data-active="true"] svg {
-    @apply text-emerald-700 dark:text-emerald-400;
+    color: var(--primary);
   }
   .dialog-scroll {
+    min-width: 0;
     max-height: calc(100dvh - 12rem);
     overflow-y: auto;
     overscroll-behavior: contain;
@@ -148,9 +153,9 @@
     max-width: 420px;
     border: 1px solid var(--border);
     background: var(--card);
-    border-radius: 20px;
+    border-radius: 6px;
     padding: 32px;
-    box-shadow: 0 12px 50px #15331b06;
+    box-shadow: none;
   }
   .standalone-card h1 {
     font-size: 26px;
@@ -232,20 +237,6 @@
     transition-duration: 0.01ms !important;
   }
 }
-@keyframes enter {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-.enter {
-  animation: enter 0.25s ease-out;
-}
-
 /* iOS zooms the viewport when focusing form controls below 16px. */
 @media (max-width: 767px) {
   .app-main input:not([type="file"]),
@@ -254,4 +245,255 @@
   [role="dialog"] select {
     font-size: 16px;
   }
+}
+@layer components {
+  .work-section {
+    @apply min-w-0 border-b pb-7;
+  }
+  .store-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+    padding: 20px 0;
+  }
+  .store-identity {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    min-width: 0;
+  }
+  .store-artwork {
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    flex-shrink: 0;
+    object-fit: cover;
+  }
+  .store-app-name {
+    overflow-wrap: anywhere;
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1.5;
+  }
+  .store-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-left: 58px;
+  }
+  .store-actions button {
+    min-height: 36px;
+  }
+  .artifact-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    padding: 18px 0;
+  }
+  .version-dialog {
+    width: calc(100vw - 24px);
+    max-width: 620px;
+    max-height: calc(100dvh - 28px);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    border-radius: 6px;
+  }
+  .version-list {
+    min-height: 100px;
+    max-height: 46dvh;
+    overflow-y: auto;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    overscroll-behavior: contain;
+  }
+  .version-option {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 10px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  .version-option:last-child {
+    border-bottom: 0;
+  }
+  .version-option[aria-checked="true"] {
+    background: var(--secondary);
+  }
+  .version-option:hover {
+    background: var(--secondary);
+  }
+}
+@media (min-width: 1024px) {
+  .store-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 24px;
+  }
+  .store-actions {
+    padding-left: 0;
+    justify-content: flex-end;
+  }
+}
+@media (max-width: 380px) {
+  .store-actions {
+    padding-left: 0;
+  }
+  .store-actions button {
+    flex: 1 1 auto;
+  }
+}
+
+.source-app-row,
+.build-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+.source-app-row {
+  padding: 20px 0;
+}
+@media (min-width: 768px) {
+  .source-app-row {
+    grid-template-columns: minmax(0, 1fr) 220px;
+    align-items: start;
+    gap: 28px;
+  }
+  .build-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+  }
+  .artifact-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+svg.lucide {
+  stroke-width: 1.7;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+@media (pointer: coarse) {
+  button,
+  a[role="button"],
+  .subtle-button {
+    min-height: 40px;
+  }
+  .mobile-nav button {
+    min-height: 56px;
+  }
+  .version-option {
+    min-height: 56px;
+  }
+}
+
+.account-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 40px;
+  align-items: end;
+  gap: 16px;
+}
+.account-controls > [data-slot="field"]:first-child {
+  grid-column: 1/-1;
+}
+@media (min-width: 640px) {
+  .account-controls {
+    grid-template-columns: minmax(0, 1fr) 140px 40px;
+  }
+  .account-controls > [data-slot="field"]:first-child {
+    grid-column: auto;
+  }
+}
+
+h1,
+h2,
+h3,
+[data-slot="empty-title"] {
+  text-wrap: balance;
+}
+p,
+[data-slot="field-description"] {
+  text-wrap: pretty;
+}
+time,
+dd,
+.version-option {
+  font-variant-numeric: tabular-nums;
+}
+
+.app-header {
+  min-height: calc(64px + env(safe-area-inset-top));
+}
+
+/* Text-only enlargement reflows controls instead of shrinking labels or clipping glyphs. */
+.app-header {
+  flex-wrap: wrap;
+  align-content: center;
+  gap: 8px 12px;
+}
+.app-header > div {
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+.app-main input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+[role="dialog"] input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]) {
+  height: auto;
+  min-height: calc(1.5em + 0.5rem + 2px);
+}
+.app-main select,
+[role="dialog"] select {
+  height: auto;
+  min-height: calc(1.5em + 1rem + 2px);
+}
+.relative:has(> input) > svg.absolute {
+  top: 50%;
+  transform: translateY(-50%);
+}
+@media (max-width: 767px) {
+  .mobile-nav {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+  .mobile-nav .nav-link {
+    flex: 1 0 auto;
+    min-width: 44px;
+    white-space: nowrap;
+  }
+}
+
+/* The scrolling release list yields space; its primary action keeps its text height. */
+.version-dialog > button {
+  flex-shrink: 0;
+}
+
+/* Fieldset's native min-content track must yield to the signing dialog's width. */
+#sign-form .dialog-scroll {
+  grid-template-columns: minmax(0, 1fr);
+}
+#sign-form .dialog-scroll > *,
+#sign-form label,
+#sign-form label > span {
+  min-width: 0;
+}
+#sign-form label > span {
+  overflow-wrap: anywhere;
+}
+#sign-form .sign-pickers-grid,
+#sign-form .sign-options-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8em), 1fr));
+}
+#sign-form select[aria-label="Tweak source"] {
+  min-width: min(100%, 8em);
+  max-width: 100%;
 }

@@ -1,6 +1,6 @@
 # IPA library, App Store accounts, and model-based decryption
 
-Version `3.1.0-2` adds an IPA library, App Store account tools, and model-based decryption to the existing signing interface. The source integrations use real, pinned submodules:
+The IPA library, App Store account tools, and model-based decryption introduced in `3.1.0-2` gain personalized-license repair, complete automatic model selection, and richer app/version browsing in `3.1.0-3`. The source integrations use real, pinned submodules:
 
 | Integration            | Source                                                    | Pinned revision                            |
 | ---------------------- | --------------------------------------------------------- | ------------------------------------------ |
@@ -23,7 +23,7 @@ Encryption state comes from the executable's Mach-O encryption commands. **Encry
 
 The App Store screen supports multiple saved accounts. Sign in with the account's email and password, and provide an Apple two-factor code when requested. Account state is kept in the encrypted browser vault rather than an operating-system keychain or a server-side account database.
 
-Select an account and country/storefront before browsing. Country selection controls regional search and availability; it does not change the Apple account's billing country or grant access to another country's purchases.
+Select an account before browsing. Each account keeps its own Apple storefront, which is used for purchases and downloads. The separate search-country selector can browse another regional catalog; it does not change the account's billing country or grant access to that country's purchases. Country labels come from Apple's storefront catalog when a mapping is available; model selectors and uploaded filenames do not establish an account country.
 
 Available operations include:
 
@@ -34,17 +34,35 @@ Available operations include:
 - Download the latest version or a particular external version identifier.
 - Upgrade or downgrade by choosing another version of the same app, keeping each downloaded artifact in the library.
 
+Purchased-app rows automatically load catalog names, bundle identifiers, current versions, artwork, and known pricing where available, while retaining their purchase dates. Missing catalog metadata keeps the owned entry visible with its bundle identifier or `App #<id>` as a fallback. An unknown price is not labelled free. Delisted apps can still reach Apple's version/download endpoints by their numeric app identifier when Apple continues to serve the account's copy.
+
+The versions dialog loads external version identifiers, then automatically fills human-readable versions, names, and release dates in bounded batches. Rows remain searchable and selectable as details arrive. A failed metadata lookup stays attached to its row, and its external build identifier remains available for a specific-version download. Closing the dialog cancels pending requests.
+
 Downloads and decryption run as background tasks with progress, expandable logs, cancellation, and a resulting library artifact. Apple controls which versions are still available and whether an account can download them. Authentication, region, ownership, expired sessions, unavailable versions, and upstream errors remain visible instead of being replaced by an apparent successful result.
 
 On supported hosts, the first App Store operation may download the pinned upstream Apple framework assets and a checksum-verified Unicorn runtime. This is separate from account storage. The runtime needs outbound HTTPS and a writable user cache. Container images set `XDG_CACHE_HOME=/data/cache`, so mounting `/data` also preserves these public caches. Configure `XDG_CACHE_HOME` explicitly if using a different volume or a read-only container filesystem.
 
+## Personalized licenses and existing-download repair
+
+Apple can return personalized SINF license blobs separately from the IPA download. SignTools applies the real upstream license-replication operation before importing that download into the library, checks the declared license paths, and confirms that the written license bytes match the response. Missing, empty, or mismatched required licenses fail the download instead of producing an apparently ready artifact. These packaging checks are separate from the full model/SINF authentication performed during decryption.
+
+For an older library artifact downloaded through ipatool that lacks required personalized licenses, keep its original purchasing account signed in to this browser and retry decryption. SignTools can automatically recover the exact acquired version and retry decryption once. Recovery requires the original account email, app identifier, and external version identifier from `iTunesMetadata.plist`; it does not silently switch to the latest release or acquire another license.
+
+Before accepting the recovered download, the server compares the account, app and external version identifiers, bundle identifier, displayed/build versions, and the paths and SHA-256 hashes of its Mach-O executables and `.supf`/`.supp` FairPlay payloads with the original. A mismatch refuses the repair and removes the rejected replacement. A verified repair creates a separate child artifact linked to the original; the original IPA remains unchanged. If the account or exact-version identity is unavailable, download that version manually with its purchasing account. Automatic recovery does not apply to arbitrary uploaded IPAs.
+
+A missing declared SINF source may also be restored locally from an already-present replica only when its manifest explicitly declares that relationship, all usable declared replicas agree on the same bytes, and a supplied model authenticates the SINF through upstream validation. Unrelated neighboring files or matching selector text alone are insufficient. The decryption result records these license copies. A model cannot recreate absent license bytes when no valid source or account-based recovery is available.
+
 ## Models and decryption
 
-Add a model exported for your own matching enrollment/account. Supported models contain the upstream v2/v3 selector information (`FPSENR2` or `FPSENR3`). The UI displays sanitized model information and keeps the model in the encrypted browser vault.
+Add models exported for your own matching enrollments/accounts. The server validates upstream v1, v2, and v3 model formats. The encrypted browser vault retains each uploaded file's original filename separately from its parsed type and selector. Older saved records without an original filename receive a neutral model identifier; re-upload the original file to retain its name. The interface does not invent a country from a model's selector, type, or filename.
 
-Choose an encrypted library IPA and run decryption. The server selects the matching model by its exact selector, then lets upstream validate the complete license/model association. You can also choose a particular model explicitly. A model without selector information, a mismatched model, or an unsupported format fails with a useful error. The server does not try every model until one appears to work.
+**Automatic** submits every saved model to the server, including entries whose older cached metadata did not mark them supported. The server opens and validates the complete supplied pool, skips malformed, unreadable, duplicate, or unsupported entries with an explanation, and authenticates valid candidates against the IPA's actual SINF licenses using the upstream resolver. Selector-bound v2/v3 candidates are considered only for their matching selectors. A v1 candidate without a selector must first pass complete SINF authentication; only then is a temporary selector-bound envelope created without changing its key/codec bytes, authenticated again, and checked to produce the identical key. The saved model remains unchanged.
 
-A request accepts up to 32 models of 64 KiB each. IPA inputs are limited to 2 GiB, individual ZIP members to 512 MiB, and total expanded data to 4 GiB; malformed or oversized inputs are rejected before upstream processing.
+An IPA can require different models for its app and extensions. Every authenticated candidate is passed through the upstream model registry, which resolves each required selector and rejects ambiguity. The result distinguishes attempted, skipped, authenticated, and selected models and retains the models that were actually used. A cached browser flag, filename, or selector match by itself cannot establish decryption success.
+
+Selecting a specific model uses only that model. An invalid or mismatched manual selection fails without falling back to the remaining pool. If no supplied model authenticates the required licenses, the task reports the failure; account-based license recovery addresses missing license data and does not turn an unrelated model into a match.
+
+A request accepts up to 32 models of 64 KiB each. Automatic selection submits the whole saved pool, so reduce a larger pool or select a specific model before retrying. IPA inputs are limited to 2 GiB, individual ZIP members to 512 MiB, and total expanded data to 4 GiB; malformed or oversized inputs are rejected before upstream processing.
 
 Models are opened only for the requested operation, written to private temporary files if upstream requires a path, and removed afterward. The server does not retain a model library or export the model's contents in logs. Decrypted output is imported as a new artifact linked to its original.
 

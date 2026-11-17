@@ -1,3 +1,33 @@
+import { Empty as UIEmpty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyContent } from "./components/ui/empty";
+import { confirmAction } from "./confirm";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "./components/ui/alert-dialog";
+import {
+  Field as UIField,
+  FieldLabel,
+  FieldDescription,
+  FieldGroup,
+  FieldSet,
+  FieldLegend,
+} from "./components/ui/field";
+import { VersionsDialog } from "./versions-dialog";
+import {
+  compactDate,
+  storeTitle,
+  storePrice,
+  modelTitle,
+  decryptionModels,
+  type StoreApp,
+  type StoreVersion,
+} from "./lib/store";
 import React, { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import {
   Apple,
@@ -40,16 +70,6 @@ import {
   type VaultModel,
 } from "./lib/vault";
 
-type StoreApp = {
-  id: string;
-  bundleId: string;
-  name: string;
-  version?: string;
-  price?: string | number;
-  platforms?: string[];
-  purchaseDate?: string;
-};
-type StoreVersion = { id: string; version?: string; name?: string; date?: string };
 type Info = { available: boolean; version?: string; revision?: string; platformSupported?: boolean };
 type Task = {
   id: string;
@@ -120,35 +140,43 @@ function Panel({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-xl border bg-card shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b px-5 py-4">
+    <section className="work-section">
+      <div className="flex flex-wrap items-start justify-between gap-3 pb-4">
         <div>
           <h2 className="text-sm font-semibold">{title}</h2>
           {detail && <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{detail}</p>}
         </div>
         {action}
       </div>
-      <div className="p-5">{children}</div>
+      <div>{children}</div>
     </section>
   );
 }
 function Field({ label, children }: { label: string; children: ReactNode }) {
+  const id = React.useId();
+  let bound = false;
+  const content = React.Children.map(children, (child) => {
+    if (!bound && React.isValidElement<{ id?: string; "aria-label"?: string }>(child)) {
+      bound = true;
+      return React.cloneElement(child, { id, "aria-label": child.props["aria-label"] || label });
+    }
+    return child;
+  });
   return (
-    <label className="grid min-w-0 gap-2 text-xs font-medium">
-      {label}
-      {children}
-    </label>
+    <UIField className="min-w-0 gap-2">
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      {content}
+    </UIField>
   );
 }
 function Empty({ icon, title, detail }: { icon: ReactNode; title: string; detail: string }) {
   return (
-    <div className="flex flex-col items-center px-4 py-12 text-center">
-      <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl border bg-secondary text-muted-foreground">
-        {icon}
-      </div>
-      <h3 className="text-sm font-medium">{title}</h3>
-      <p className="mt-2 max-w-sm text-xs leading-6 text-muted-foreground">{detail}</p>
-    </div>
+    <UIEmpty>
+      <EmptyHeader>
+        <EmptyTitle>{title}</EmptyTitle>
+        <EmptyDescription>{detail}</EmptyDescription>
+      </EmptyHeader>
+    </UIEmpty>
   );
 }
 function artifactSource(artifact: Artifact): UploadSource {
@@ -198,9 +226,6 @@ export function Workbench({
   const [totalResults, setTotalResults] = useState(0);
   const [purchaseApp, setPurchaseApp] = useState<StoreApp | null>(null);
   const [versionApp, setVersionApp] = useState<StoreApp | null>(null);
-  const [versions, setVersions] = useState<StoreVersion[]>([]);
-  const [versionId, setVersionId] = useState("");
-  const [versionDetails, setVersionDetails] = useState<StoreVersion | null>(null);
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [modelId, setModelId] = useState("auto");
   const [stripAccount, setStripAccount] = useState(true);
@@ -373,46 +398,7 @@ export function Workbench({
     }
   }
 
-  async function showVersions(app: StoreApp) {
-    setVersionApp(app);
-    setVersions([]);
-    setVersionId("");
-    setVersionDetails(null);
-    setBusy("versions");
-    setNotice(null);
-    try {
-      const response = await storeCall("versions", { appId: app.id, bundleId: app.bundleId });
-      setVersions(response.versions || []);
-    } catch (error) {
-      fail(error);
-    } finally {
-      setBusy("");
-    }
-  }
-
-  async function showVersionMetadata(id: string) {
-    setVersionId(id);
-    setVersionDetails(null);
-    if (!id || !versionApp) return;
-    setBusy("metadata");
-    try {
-      const response = await storeCall("version-metadata", {
-        appId: versionApp.id,
-        bundleId: versionApp.bundleId,
-        versionId: id,
-      });
-      if (response.version) {
-        setVersionDetails(response.version);
-        setVersions((all) => all.map((item) => (item.id === id ? { ...item, ...response.version } : item)));
-      }
-    } catch (error) {
-      fail(error);
-    } finally {
-      setBusy("");
-    }
-  }
-
-  async function download(app: StoreApp, selectedVersion = "") {
+  async function download(app: StoreApp, selectedVersion = "", version?: StoreVersion) {
     setBusy("download");
     setNotice(null);
     try {
@@ -423,10 +409,8 @@ export function Workbench({
         appId: app.id,
         bundleId: app.bundleId,
         versionId: selectedVersion || undefined,
-        displayName: app.name,
-        version: selectedVersion
-          ? versionDetails?.version || versions.find((item) => item.id === selectedVersion)?.version
-          : app.version,
+        displayName: version?.name || storeTitle(app),
+        version: selectedVersion ? version?.version : app.version,
       });
       const mapping = readLocal<Record<string, string>>("signtools.tasks.accounts", {});
       mapping[task.id] = active.id;
@@ -474,7 +458,16 @@ export function Workbench({
         }>("/api/decrypt/model-info", { model: data });
         const encrypted = await postJSON<{ sealed: string }>("/api/vault/seal", { purpose: "decrypt-model", data });
         bytes.fill(0);
-        await saveModel({ id: crypto.randomUUID(), name: file.name, ...details, sealed: encrypted.sealed });
+        await saveModel({
+          id: crypto.randomUUID(),
+          name: file.name,
+          originalFilename: file.name,
+          typeName: details.name,
+          selector: details.selector,
+          formatVersion: details.formatVersion,
+          supported: details.supported,
+          sealed: encrypted.sealed,
+        });
       }
       await refreshVault();
       setNotice({
@@ -493,17 +486,18 @@ export function Workbench({
     setBusy("decrypt-" + artifact.id);
     setNotice(null);
     try {
-      const selected =
-        modelId === "auto"
-          ? models.filter((model) => model.supported)
-          : models.filter((model) => model.id === modelId);
-      if (!selected.length) throw new Error("Upload a supported matching decryption model first.");
+      const selected = decryptionModels(models, modelId);
+      if (!selected.length) throw new Error("Upload a matching decryption model first.");
       const task = await postJSON<Task>("/api/decrypt", {
         clientId: owner,
         artifactId: artifact.id,
-        models: selected.map(({ id, name, sealed }) => ({ id, name, sealed })),
+        models: selected,
         modelId: modelId === "auto" ? undefined : modelId,
         stripAccountData: stripAccount,
+        repairSessions: accounts
+          .map((account) => account.session)
+          .filter(Boolean)
+          .slice(0, 32),
       });
       setTasks((all) => [task, ...all.filter((item) => item.id !== task.id)]);
       setNotice({ kind: "success", text: "Decryption started. Open the task log to follow its progress." });
@@ -631,7 +625,7 @@ export function Workbench({
                 detail="Sign in to search your storefront, view purchases and download a specific app version."
               />
             ) : (
-              <div className="grid items-end gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,180px)_auto]">
+              <div className="account-controls">
                 <Field label="Active account">
                   <select
                     aria-label="Active Apple account"
@@ -680,8 +674,8 @@ export function Workbench({
                   variant="ghost"
                   size="icon"
                   aria-label="Remove selected Apple account from this browser"
-                  onClick={() => {
-                    if (active) {
+                  onClick={async () => {
+                    if (active && (await confirmAction(`Remove ${active.email} from this browser?`))) {
                       removeAccount(active.id);
                       void refreshVault().catch(fail);
                     }
@@ -712,61 +706,87 @@ export function Workbench({
                 void browse("search");
               }}
             >
-              <div className="relative min-w-0 basis-full sm:flex-1">
-                <Search className="absolute left-3 top-2.5 text-muted-foreground" size={16} />
-                <Input
-                  aria-label="Search App Store"
-                  placeholder="App name or bundle identifier"
-                  value={term}
-                  onChange={(event) => setTerm(event.target.value)}
-                  className="pl-9"
-                />
-              </div>
-              <Button type="submit" disabled={!active || !!busy || !term.trim()}>
-                {busy === "browse" ? <Loader2 className="animate-spin" /> : <Search />}Search
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={!active || !!busy}
-                onClick={() => void browse("purchases")}
-              >
-                My purchases
-              </Button>
+              <FieldGroup className="contents">
+                <div className="relative min-w-0 basis-full sm:flex-1">
+                  <Search className="absolute left-3 top-2.5 text-muted-foreground" size={16} />
+                  <Input
+                    aria-label="Search App Store"
+                    placeholder="App name or bundle identifier"
+                    value={term}
+                    onChange={(event) => setTerm(event.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                <Button type="submit" disabled={!active || !!busy || !term.trim()}>
+                  {busy === "browse" ? <Loader2 className="animate-spin" /> : <Search />}Search
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!active || !!busy}
+                  onClick={() => void browse("purchases")}
+                >
+                  My purchases
+                </Button>
+              </FieldGroup>
             </form>
             {!!results.length ? (
               <>
-                <div className="mt-5 divide-y rounded-lg border">
+                <div className="store-results mt-5 divide-y border-y">
                   {results.map((app) => (
-                    <div key={app.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
-                      <div className="flex min-w-0 flex-1 items-center gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border bg-secondary">
-                          <Package size={19} className="text-muted-foreground" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium">{app.name}</p>
-                          <p className="mt-1 truncate text-[11px] text-muted-foreground">
-                            {app.bundleId} {app.version ? `· ${app.version}` : ""}
+                    <article key={app.id} className="store-row">
+                      <div className="store-identity">
+                        {app.artworkUrl ? (
+                          <img
+                            className="store-artwork"
+                            src={app.artworkUrl}
+                            alt=""
+                            loading="lazy"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <div className="store-artwork flex items-center justify-center bg-secondary">
+                            <Package size={20} className="text-muted-foreground" />
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <h3 className="store-app-name">{storeTitle(app)}</h3>
+                          <p className="mt-1 break-words text-xs text-muted-foreground">
+                            {app.bundleId || `App ID ${app.id}`}
+                            {app.version ? ` · ${app.version}` : ""}
                           </p>
-                          <p className="mt-1 text-[11px] text-muted-foreground">
-                            {app.price === 0 || app.price === "0" ? "Free" : app.price || ""}
-                            {app.purchaseDate ? ` · Purchased ${app.purchaseDate}` : ""}
-                          </p>
+                          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                            {storePrice(app) && <span>{storePrice(app)}</span>}
+                            {compactDate(app.purchaseDate) && (
+                              <time dateTime={app.purchaseDate}>Purchased {compactDate(app.purchaseDate)}</time>
+                            )}
+                            {app.metadataError && <span>Catalog details unavailable</span>}
+                          </div>
                         </div>
                       </div>
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="outline" disabled={!!busy} onClick={() => setPurchaseApp(app)}>
-                          Purchase
-                        </Button>
-                        <Button size="sm" variant="outline" disabled={!!busy} onClick={() => void showVersions(app)}>
+                      <div className="store-actions">
+                        {mode !== "purchases" && !app.owned && (
+                          <Button size="sm" variant="outline" disabled={!!busy} onClick={() => setPurchaseApp(app)}>
+                            Purchase
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={!!busy}
+                          onClick={() => {
+                            setNotice(null);
+                            setVersionApp(app);
+                          }}
+                        >
                           Versions
                         </Button>
                         <Button size="sm" disabled={!!busy} onClick={() => void download(app)}>
-                          <Download />
+                          <Download size={14} />
                           Download
                         </Button>
                       </div>
-                    </div>
+                    </article>
                   ))}
                 </div>
                 <div className="mt-4 flex items-center justify-between gap-2 text-xs text-muted-foreground">
@@ -797,8 +817,8 @@ export function Workbench({
             ) : (
               <Empty
                 icon={<Search size={20} />}
-                title="A version for every workflow"
-                detail="Search for an app, open its available versions, then choose a release to upgrade or downgrade. Purchases only happen when you confirm them."
+                title="No apps to show"
+                detail="Search by app name or bundle identifier, or open your purchases."
               />
             )}
           </Panel>
@@ -809,7 +829,7 @@ export function Workbench({
         <>
           <Panel
             title="Decryption models"
-            detail="Models are sealed by this server, then encrypted again with your browser key. They are only sent to a decryption job when needed."
+            detail="Automatic selection checks all saved models. Missing App Store license data can be restored for the exact same version using a matching saved Apple account."
             action={
               <>
                 <input
@@ -829,27 +849,36 @@ export function Workbench({
             {!models.length ? (
               <Empty
                 icon={<FileKey2 size={21} />}
-                title="Bring a matching model"
-                detail="Upload one or more enrollment models from your device. Automatic selection matches each IPA's exact encryption selector."
+                title="No saved models"
+                detail="Upload enrollment model files. The server checks saved models against each IPA."
               />
             ) : (
-              <div className="space-y-3">
+              <div className="divide-y border-y">
                 {models.map((model) => (
-                  <div key={model.id} className="flex items-center gap-3 rounded-lg border p-3">
+                  <div key={model.id} className="flex items-start gap-3 py-4">
                     <FileKey2 size={18} className="shrink-0 text-primary" />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{model.name}</p>
-                      <p className="mt-1 break-all font-mono text-[10px] text-muted-foreground">
+                      <p className="break-words text-sm font-medium">{modelTitle(model)}</p>
+                      {model.typeName && <p className="mt-1 text-xs text-muted-foreground">{model.typeName}</p>}
+                      {!model.originalFilename && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Original filename unavailable. Re-upload this file to save its name.
+                        </p>
+                      )}
+                      <p className="mt-1 break-all font-mono text-xs text-muted-foreground">
                         {model.selector || "No exact selector"}
                         {model.formatVersion !== undefined ? ` · Format ${model.formatVersion}` : ""}
                       </p>
                     </div>
-                    <Badge variant="outline">{model.supported ? "Ready" : "Unsupported"}</Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {model.supported ? "Parsed" : "Check on server"}
+                    </span>
                     <Button
                       size="icon"
                       variant="ghost"
-                      aria-label={"Remove model " + model.name}
-                      onClick={() => {
+                      aria-label={"Remove model " + modelTitle(model)}
+                      onClick={async () => {
+                        if (!(await confirmAction(`Remove ${modelTitle(model)} from this browser?`))) return;
                         removeModel(model.id);
                         if (modelId === model.id) setModelId("auto");
                         void refreshVault().catch(fail);
@@ -864,11 +893,10 @@ export function Workbench({
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <Field label="Model selection">
                 <select className={selectClass} value={modelId} onChange={(event) => setModelId(event.target.value)}>
-                  <option value="auto">Automatic · exact selector match</option>
+                  <option value="auto">Automatic · check all saved models</option>
                   {models.map((model) => (
                     <option key={model.id} value={model.id}>
-                      {model.name}
-                      {model.supported ? "" : " (unsupported)"}
+                      {modelTitle(model)}
                     </option>
                   ))}
                 </select>
@@ -919,11 +947,11 @@ export function Workbench({
                         {artifact.buildVersion ? ` (${artifact.buildVersion})` : ""}
                       </p>
                       <div className="mt-2 flex flex-wrap gap-2">
-                        <Badge variant="outline">{artifact.encryption}</Badge>
-                        <Badge variant="outline">{artifact.source}</Badge>
+                        <span className="text-xs text-muted-foreground">{artifact.encryption}</span>
+                        <span className="text-xs text-muted-foreground">· {artifact.source}</span>
                       </div>
                       {artifact.limitations?.map((text) => (
-                        <p key={text} className="mt-2 max-w-xl text-[11px] leading-relaxed text-muted-foreground">
+                        <p key={text} className="mt-2 max-w-xl text-xs leading-relaxed text-muted-foreground">
                           {text}
                         </p>
                       ))}
@@ -968,31 +996,33 @@ export function Workbench({
                 void exportBackup();
               }}
             >
-              <Field label="Backup passphrase">
-                <Input
-                  type="password"
-                  autoComplete="new-password"
-                  minLength={10}
-                  required
-                  value={passphrase}
-                  onChange={(event) => setPassphrase(event.target.value)}
-                />
-              </Field>
-              <Field label="Confirm passphrase">
-                <Input
-                  type="password"
-                  autoComplete="new-password"
-                  minLength={10}
-                  required
-                  value={confirmPassphrase}
-                  onChange={(event) => setConfirmPassphrase(event.target.value)}
-                />
-              </Field>
-              <Button className="w-full" disabled={!!busy}>
-                {busy === "export" ? <Loader2 className="animate-spin" /> : <Download />}Export .json.zip
-              </Button>
+              <FieldGroup className="contents">
+                <Field label="Backup passphrase">
+                  <Input
+                    type="password"
+                    autoComplete="new-password"
+                    minLength={10}
+                    required
+                    value={passphrase}
+                    onChange={(event) => setPassphrase(event.target.value)}
+                  />
+                </Field>
+                <Field label="Confirm passphrase">
+                  <Input
+                    type="password"
+                    autoComplete="new-password"
+                    minLength={10}
+                    required
+                    value={confirmPassphrase}
+                    onChange={(event) => setConfirmPassphrase(event.target.value)}
+                  />
+                </Field>
+                <Button className="w-full" disabled={!!busy}>
+                  {busy === "export" ? <Loader2 className="animate-spin" /> : <Download />}Export .json.zip
+                </Button>
+              </FieldGroup>
             </form>
-            <p className="mt-4 text-[11px] leading-6 text-muted-foreground">
+            <p className="mt-4 text-xs leading-6 text-muted-foreground">
               Keep the server's extra_conf.enc_key as well. Existing sealed sessions and models require the same server
               key after a server move.
             </p>
@@ -1026,7 +1056,7 @@ export function Workbench({
                 <Upload />
                 Restore backup
               </Button>
-              <p className="text-[11px] leading-6 text-muted-foreground">
+              <p className="text-xs leading-6 text-muted-foreground">
                 Restore replaces this browser's SignTools vault and preferences, including its encryption key. A wrong
                 passphrase leaves current data untouched.
               </p>
@@ -1040,27 +1070,27 @@ export function Workbench({
           title="Tasks"
           detail="Downloads and decryption keep running on the server. Expand a task to inspect its log."
           action={
-            <Badge variant="outline">
+            <span className="text-xs text-muted-foreground">
               {tasks.filter((task) => task.state === "running" || task.state === "queued").length} active
-            </Badge>
+            </span>
           }
         >
           {!tasks.length ? (
             <p className="py-3 text-xs text-muted-foreground">Your downloads and decryption tasks will appear here.</p>
           ) : (
-            <div className="space-y-3">
+            <div className="divide-y border-y">
               {tasks.slice(0, 25).map((task) => (
-                <div key={task.id} className="overflow-hidden rounded-lg border">
-                  <div className="flex flex-wrap items-start justify-between gap-3 p-4">
+                <div key={task.id} className="overflow-hidden">
+                  <div className="grid min-w-0 gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_auto]">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <Terminal size={15} className="text-muted-foreground" />
-                        <p className="truncate text-sm font-medium">{task.title}</p>
+                        <p className="break-words text-sm font-medium">{task.title}</p>
                       </div>
                       <div className="mt-2 flex items-center gap-2">
-                        <Badge variant="outline">{task.state}</Badge>
+                        <span className="text-xs text-muted-foreground">{task.state}</span>
                         {(task.state === "running" || task.state === "queued") && (
-                          <span className="text-[11px] text-muted-foreground">
+                          <span className="text-xs text-muted-foreground">
                             {Math.round(Math.min(100, Math.max(0, task.progress)))}%
                           </span>
                         )}
@@ -1089,17 +1119,17 @@ export function Workbench({
                     )}
                     {task.state === "succeeded" && task.result?.artifact && (
                       <div className="space-y-2">
-                        <Badge variant="outline">{task.result.artifact.encryption}</Badge>
+                        <span className="text-xs text-muted-foreground">{task.result.artifact.encryption}</span>
                         {artifactActions(task.result.artifact)}
                       </div>
                     )}
                   </div>
-                  <details className="border-t bg-secondary/30">
-                    <summary className="flex items-center gap-2 px-4 py-2.5 text-[11px] text-muted-foreground">
+                  <details className="border-t border-dashed">
+                    <summary className="flex items-center gap-2 py-3 text-xs text-muted-foreground">
                       <ChevronRight size={12} />
                       Task log {task.logs?.length ? `(${task.logs.length})` : ""}
                     </summary>
-                    <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words px-4 pb-4 font-mono text-[11px] leading-6">
+                    <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words px-4 pb-4 font-mono text-xs leading-6">
                       {(task.logs || []).join("\n") || "Waiting for task output…"}
                       {task.result?.report
                         ? "\n\nVerification report\n" + JSON.stringify(task.result.report, null, 2)
@@ -1135,42 +1165,44 @@ export function Workbench({
           </DialogHeader>
           <DialogError notice={notice} />
           <form className="space-y-4" onSubmit={(event) => void logIn(event)}>
-            <Field label="Apple account email">
-              <Input
-                type="email"
-                autoComplete="username"
-                required
-                readOnly={!!challenge}
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-              />
-            </Field>
-            {challenge ? (
-              <Field label="Verification code">
+            <FieldGroup className="contents">
+              <Field label="Apple account email">
                 <Input
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
+                  type="email"
+                  autoComplete="username"
                   required
-                  value={authCode}
-                  onChange={(event) => setAuthCode(event.target.value.replace(/\s/g, ""))}
-                  autoFocus
+                  readOnly={!!challenge}
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
                 />
               </Field>
-            ) : (
-              <Field label="Password">
-                <Input
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                />
-              </Field>
-            )}
-            <Button className="w-full" disabled={!!busy || !owner}>
-              {busy === "login" ? <Loader2 className="animate-spin" /> : <Apple />}
-              {challenge ? "Verify account" : "Sign in"}
-            </Button>
+              {challenge ? (
+                <Field label="Verification code">
+                  <Input
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    required
+                    value={authCode}
+                    onChange={(event) => setAuthCode(event.target.value.replace(/\s/g, ""))}
+                    autoFocus
+                  />
+                </Field>
+              ) : (
+                <Field label="Password">
+                  <Input
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                  />
+                </Field>
+              )}
+              <Button className="w-full" disabled={!!busy || !owner}>
+                {busy === "login" ? <Loader2 className="animate-spin" /> : <Apple />}
+                {challenge ? "Verify account" : "Sign in"}
+              </Button>
+            </FieldGroup>
           </form>
         </DialogContent>
       </Dialog>
@@ -1190,12 +1222,10 @@ export function Workbench({
           </DialogHeader>
           <DialogError notice={notice} />
           <div className="rounded-lg border bg-secondary/30 p-4">
-            <p className="font-medium">{purchaseApp?.name}</p>
+            <p className="font-medium">{purchaseApp ? storeTitle(purchaseApp) : ""}</p>
             <p className="mt-2 text-sm">
               Listed price:{" "}
-              {purchaseApp?.price === 0 || purchaseApp?.price === "0"
-                ? "Free"
-                : (purchaseApp?.price ?? "Check your account storefront")}
+              {purchaseApp ? storePrice(purchaseApp) || "Price unavailable; check your account storefront" : ""}
             </p>
             <p className="mt-2 break-all text-xs text-muted-foreground">
               {active?.email} · {active?.country}
@@ -1206,79 +1236,43 @@ export function Workbench({
           </Button>
         </DialogContent>
       </Dialog>
-      <Dialog
-        open={!!versionApp}
-        onOpenChange={(open) => {
-          if (!open) setVersionApp(null);
+      <VersionsDialog
+        app={versionApp}
+        account={active}
+        owner={owner}
+        onClose={() => setVersionApp(null)}
+        onSession={async (session, account) => {
+          await saveAccount({ ...account, session });
+          await refreshVault();
         }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{versionApp?.name} versions</DialogTitle>
-            <DialogDescription>
-              Choose a particular release to upgrade or downgrade. Version details come from App Store metadata.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogError notice={notice} />
-          <Field label="Version">
-            <select
-              className={selectClass}
-              value={versionId}
-              onChange={(event) => void showVersionMetadata(event.target.value)}
-            >
-              <option value="">Latest available {versionApp?.version ? `· ${versionApp.version}` : ""}</option>
-              {versions.map((version) => (
-                <option key={version.id} value={version.id}>
-                  {version.version || version.name || "Version ID " + version.id}
-                  {version.version && version.name && version.name !== version.version ? " · " + version.name : ""}
-                </option>
-              ))}
-            </select>
-          </Field>
-          {busy === "versions" || busy === "metadata" ? (
-            <p className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Loader2 size={14} className="animate-spin" />
-              Loading version metadata…
-            </p>
-          ) : (
-            versionDetails && (
-              <div className="rounded-lg border bg-secondary/30 p-4 text-xs leading-6">
-                <p className="font-medium">
-                  {versionDetails.name || versionApp?.name} · {versionDetails.version || "Unknown version"}
-                </p>
-                <p className="text-muted-foreground">
-                  Version ID {versionDetails.id}
-                  {versionDetails.date ? ` · ${versionDetails.date}` : ""}
-                </p>
-              </div>
-            )
-          )}
-          <Button
-            disabled={!!busy || !versionApp}
-            onClick={() => {
-              if (versionApp) void download(versionApp, versionId);
-            }}
-          >
-            <Download />
-            Download selected version
-          </Button>
-        </DialogContent>
-      </Dialog>
-      <Dialog open={restoreOpen} onOpenChange={setRestoreOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Replace this browser's SignTools data?</DialogTitle>
-            <DialogDescription>
+        onDownload={download}
+        busy={!!busy}
+      />
+      <AlertDialog open={restoreOpen} onOpenChange={setRestoreOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Replace this browser's SignTools data?</AlertDialogTitle>
+            <AlertDialogDescription>
               The backup replaces your accounts, models, browser encryption key, repositories and preferences. The
               workspace reloads after a successful restore.
-            </DialogDescription>
-          </DialogHeader>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
           <DialogError notice={notice} />
-          <Button disabled={!!busy} onClick={() => void importBackup()}>
-            {busy === "restore" ? <Loader2 className="animate-spin" /> : <Upload />}Restore encrypted backup
-          </Button>
-        </DialogContent>
-      </Dialog>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!busy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={!!busy}
+              onClick={(event) => {
+                event.preventDefault();
+                void importBackup();
+              }}
+            >
+              {busy === "restore" && <Loader2 className="animate-spin" />}Restore backup
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
